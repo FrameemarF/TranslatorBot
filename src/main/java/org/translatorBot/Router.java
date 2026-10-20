@@ -6,6 +6,7 @@ import org.telegram.telegrambots.longpolling.interfaces.LongPollingUpdateConsume
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
+import org.translatorBot.Service.Translation.TranslationService;
 
 import java.util.List;
 

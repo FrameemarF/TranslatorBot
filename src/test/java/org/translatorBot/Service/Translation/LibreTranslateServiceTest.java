@@ -1,10 +1,11 @@
-package org.translatorBot;
+package org.translatorBot.Service.Translation;
 
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.translatorBot.Language;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -56,7 +57,7 @@ class LibreTranslateServiceTest {
      * @return экземпляр {@link LibreTranslateService} с URL запущенного сервера
      */
     private LibreTranslateService service() {
-        return new LibreTranslateService("http://127.0.0.1:" + server.getAddress().getPort(), "");
+        return new LibreTranslateService("http://127.0.0.1:" + server.getAddress().getPort());
     }
 
     /** Успешный перевод: корректный результат и правильные поля запроса (source/target/текст). */

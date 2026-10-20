@@ -6,11 +6,11 @@ services:
     ports:
       - "5000:5000"
     environment:
-      LT_LOAD_ONLY: "en,ru"      # грузим только нужные языки: быстрее старт, меньше памяти
-      LT_CHAR_LIMIT: "4000"      # совпадает с maxTextLength в боте
+      LT_LOAD_ONLY: "en,ru,de,fr,es"
+      LT_CHAR_LIMIT: "4000"
       LT_UPDATE_MODELS: "false"
     volumes:
-      - lt-models:/home/libretranslate/.local   # модели сохраняются между перезапусками
+      - lt-models:/home/libretranslate/.local
     healthcheck:
       test: ["CMD-SHELL", "./venv/bin/python scripts/healthcheck.py"]
       interval: 30s
@@ -18,5 +18,18 @@ services:
       retries: 5
       start_period: 120s
 
+  whisper:
+    image: onerahmet/openai-whisper-asr-webservice:latest
+    container_name: whisper
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    environment:
+      ASR_MODEL: "base"            # tiny / base / small / medium — точнее, но медленнее и тяжелее
+      ASR_ENGINE: "openai_whisper"
+    volumes:
+      - whisper-cache:/root/.cache  # модель скачивается один раз
+
 volumes:
   lt-models:
+  whisper-cache:

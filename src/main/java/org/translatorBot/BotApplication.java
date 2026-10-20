@@ -5,6 +5,8 @@ import org.slf4j.LoggerFactory;
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.longpolling.TelegramBotsLongPollingApplication;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
+import org.translatorBot.Service.Translation.LibreTranslateService;
+import org.translatorBot.Service.Translation.TranslationService;
 
 import java.util.concurrent.CountDownLatch;
 
@@ -74,8 +76,7 @@ public class BotApplication {
         Sender sender = new Sender(client);
         SessionStore sessions = new SessionStore();
         TranslationService translator = new LibreTranslateService(
-                config.getLibreTranslateUrl(),
-                config.getLibreTranslateApiKey());
+                config.getLibreTranslateUrl());
         Ui ui = new Ui();
         return new Router(sender, sessions, translator, ui);
     }

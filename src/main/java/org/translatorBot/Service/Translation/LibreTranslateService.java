@@ -1,10 +1,11 @@
-package org.translatorBot;
+package org.translatorBot.Service.Translation;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.translatorBot.Language;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -31,21 +32,18 @@ public class LibreTranslateService implements TranslationService {
     private final Logger log = LoggerFactory.getLogger(getClass());
 
     private final URI endpoint;
-    private final String apiKey; // может быть пустым
 
     /**
      * Создаёт сервис с указанным базовым URL и API-ключом.
      *
      * @param baseUrl базовый URL LibreTranslate (например, {@code http://localhost:5000});
      *                завершающий слэш необязателен
-     * @param apiKey  API-ключ или {@code null}/пустая строка, если не требуется
      */
-    public LibreTranslateService(String baseUrl, String apiKey) {
+    public LibreTranslateService(String baseUrl) {
         String base = baseUrl.endsWith("/")
                 ? baseUrl.substring(0, baseUrl.length() - 1)
                 : baseUrl;
         this.endpoint = URI.create(base + "/translate");
-        this.apiKey = apiKey;
     }
 
     /**
@@ -66,9 +64,6 @@ public class LibreTranslateService implements TranslationService {
         body.put("source", from.code);
         body.put("target", to.code);
         body.put("format", "text");
-        if (apiKey != null && !apiKey.isBlank()) {
-            body.put("api_key", apiKey);
-        }
 
         HttpRequest request = HttpRequest.newBuilder(endpoint)
                 .timeout(requestTimeout)
