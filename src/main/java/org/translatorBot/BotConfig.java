@@ -15,7 +15,10 @@ import java.util.Properties;
 public class BotConfig {
     private final String botToken;
     private final String libreTranslateUrl;
-    private final String libreTranslateApiKey;
+    private final String groqApiKey;
+    private final String groqModel;
+    private final String speechProvider;
+    private final String whisperUrl;
 
     /**
      * Загружает конфигурацию из {@code application.properties} и переменных окружения.
@@ -46,9 +49,24 @@ public class BotConfig {
                 props.getProperty("libretranslate.url"),
                 "http://localhost:5000");
 
-        this.libreTranslateApiKey = firstNonBlank(
-                System.getenv("LIBRETRANSLATE_API_KEY"),
-                props.getProperty("libretranslate.api-key"));
+        this.groqApiKey = firstNonBlank(
+                System.getenv("GROQ_API_KEY"),
+                props.getProperty("groq.api-key"));
+
+        this.groqModel = firstNonBlank(
+                System.getenv("GROQ_MODEL"),
+                props.getProperty("groq.model"),
+                "whisper-large-v3-turbo");
+
+        this.speechProvider = firstNonBlank(
+                System.getenv("SPEECH_PROVIDER"),
+                props.getProperty("speech.provider"),
+                "groq");
+
+        this.whisperUrl = firstNonBlank(
+                System.getenv("WHISPER_URL"),
+                props.getProperty("whisper.url"),
+                "http://localhost:9000");
     }
 
     /**
@@ -70,6 +88,15 @@ public class BotConfig {
     /** @return базовый URL LibreTranslate (по умолчанию {@code http://localhost:5000}) */
     public String getLibreTranslateUrl() { return libreTranslateUrl; }
 
-    /** @return API-ключ LibreTranslate или {@code null}, если не задан */
-    public String getLibreTranslateApiKey() { return libreTranslateApiKey; }
+    /** @return API-ключ Groq (распознавание речи) или {@code null}, если не задан */
+    public String getGroqApiKey() { return groqApiKey; }
+
+    /** @return модель Whisper на Groq (по умолчанию {@code whisper-large-v3-turbo}) */
+    public String getGroqModel() { return groqModel; }
+
+    /** @return провайдер распознавания речи: {@code groq} или {@code whisper} */
+    public String getSpeechProvider() { return speechProvider; }
+
+    /** @return адрес локального Whisper-сервиса */
+    public String getWhisperUrl() { return whisperUrl; }
 }
