@@ -1,4 +1,6 @@
-package org.translatorBot;
+package org.translatorBot.Session;
+
+import org.translatorBot.Language;
 
 /**
  * Хранит состояние диалога одного пользователя в сценарии перевода.

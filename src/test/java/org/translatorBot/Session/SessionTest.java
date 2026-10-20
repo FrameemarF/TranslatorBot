@@ -1,7 +1,8 @@
-package org.translatorBot;
+package org.translatorBot.Session;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.translatorBot.Language;
 
 /**
  * Модульные тесты для {@link Session}, проверяющие начальное состояние,

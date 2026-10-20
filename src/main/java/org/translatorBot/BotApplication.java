@@ -5,9 +5,23 @@ import org.slf4j.LoggerFactory;
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.longpolling.TelegramBotsLongPollingApplication;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
+import org.translatorBot.Service.Speech.FallbackSpeechService;
+import org.translatorBot.Service.Speech.GroqSpeechService;
+import org.translatorBot.Service.Speech.SpeechRecognitionService;
+import org.translatorBot.Service.Speech.WhisperSpeechService;
+import org.translatorBot.Handler.DocumentHandler;
+import org.translatorBot.Handler.MaterialHandler;
+import org.translatorBot.Handler.Router;
+import org.translatorBot.Handler.TextHandler;
+import org.translatorBot.Handler.DialogFlow;
+import org.translatorBot.Handler.CallbackHandler;
+import org.translatorBot.Handler.CommandHandler;
+import org.translatorBot.Session.InMemorySessionStore;
+import org.translatorBot.Session.SessionStore;
 import org.translatorBot.Service.Translation.LibreTranslateService;
 import org.translatorBot.Service.Translation.TranslationService;
 
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -67,6 +81,9 @@ public class BotApplication {
 
     /**
      * Создаёт и настраивает {@link Router} со всеми зависимостями.
+     * <p>
+     * Распознавание речи: сначала облачный Groq, при его недоступности
+     * (лимиты, сеть, нет ключа) — автоматически локальный Whisper.
      *
      * @param config конфигурация бота
      * @return готовый маршрутизатор для обработки обновлений
@@ -74,10 +91,23 @@ public class BotApplication {
     Router buildRouter(BotConfig config) {
         TelegramClient client = new OkHttpTelegramClient(config.getBotToken());
         Sender sender = new Sender(client);
-        SessionStore sessions = new SessionStore();
+        SessionStore sessions = new InMemorySessionStore();
         TranslationService translator = new LibreTranslateService(
                 config.getLibreTranslateUrl());
+
+        if (config.getGroqApiKey() == null) {
+            log.warn("GROQ_API_KEY is not set: speech recognition will use local Whisper only");
+        }
+        SpeechRecognitionService speech = new FallbackSpeechService(
+                new GroqSpeechService(config.getGroqApiKey(), config.getGroqModel()),
+                new WhisperSpeechService(config.getWhisperUrl()));
+
         Ui ui = new Ui();
-        return new Router(sender, sessions, translator, ui);
+        DialogFlow flow = new DialogFlow(sender, ui);
+        List<MaterialHandler> handlers = List.of(
+                new TextHandler(sender, translator, ui),
+                new DocumentHandler(sender, translator, ui));
+        return new Router(sessions, new CommandHandler(flow),
+                new CallbackHandler(sender, sessions, flow), flow, handlers);
     }
 }
