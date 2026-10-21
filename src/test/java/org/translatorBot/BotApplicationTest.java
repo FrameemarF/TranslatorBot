@@ -1,14 +1,12 @@
 package org.translatorBot;
 
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import org.translatorBot.Handler.Router;
 
 /**
  * Тесты для {@link BotApplication}, проверяющие корректность
- * создания {@link Router} через {@link BotApplication#buildRouter(BotConfig)}.
+ * создания графа зависимостей (сборки {@link Router}).
  */
 class BotApplicationTest {
 
@@ -16,43 +14,40 @@ class BotApplicationTest {
      * Проверяет, что {@code buildRouter} возвращает не {@code null}.
      */
     @Test
-    void buildRouter_returnsNonNullRouter() {
+    void buildRouterReturnsNonNullRouter() {
         BotApplication app = new BotApplication();
         BotConfig config = new BotConfig();
 
         Router router = app.buildRouter(config);
 
-        assertNotNull(router);
+        Assertions.assertNotNull(router);
     }
 
     /**
      * Проверяет, что каждый вызов {@code buildRouter} создаёт новый
-     * независимый экземпляр {@link Router}.
+     * независимый экземпляр {@link Router}, а не возвращает один и тот же.
      */
     @Test
-    void buildRouter_createsIndependentInstances() {
+    void buildRouterCreatesIndependentInstances() {
         BotApplication app = new BotApplication();
         BotConfig config = new BotConfig();
 
         Router first  = app.buildRouter(config);
         Router second = app.buildRouter(config);
 
-        assertNotSame(first, second,
+        Assertions.assertNotSame(first, second,
                 "Каждый вызов buildRouter должен создавать новый Router");
     }
 
     /**
-     * Проверяет, что {@link BotConfig} по умолчанию содержит токен бота.
-     * <p>
+     * Проверяет, что конфигурация по умолчанию содержит токен бота.
      * Служит защитой от запуска с некорректной конфигурацией.
      */
     @Test
-    void buildRouter_failsIfTokenIsMissing() {
-        // BotConfig без BOT_TOKEN и без properties бросит исключение
-        // — это защита от запуска с некорректной конфигурацией.
-        // В тестах у нас есть application.properties, поэтому здесь
-        // проверяем только контракт: сам BotConfig валиден.
+    void configContainsBotToken() {
         BotConfig config = new BotConfig();
-        assertNotNull(config.getBotToken());
+
+        Assertions.assertNotNull(config.getBotToken(),
+                "Токен бота должен быть задан в конфигурации");
     }
 }

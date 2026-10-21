@@ -4,12 +4,18 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
+import org.telegram.telegrambots.meta.api.methods.GetFile;
+import org.telegram.telegrambots.meta.api.methods.send.SendDocument;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.objects.File;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.lang.reflect.Proxy;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -18,17 +24,24 @@ import java.util.List;
  * <p>
  * {@link TelegramClient} имеет десятки методов, реализовывать их все вручную нет смысла,
  * поэтому вместо класса используется {@link Proxy}, который записывает вызовы
- * {@code execute(...)} в список {@link #executed}. Mockito не нужен.
+ * {@code execute(...)} и подменяет скачивание файлов. Mockito не нужен.
  */
 class SenderTest {
     /** Запросы, переданные в {@code TelegramClient.execute(...)} в порядке вызова. */
     private final List<Object> executed = new ArrayList<>();
     /** Если {@code true}, клиент бросает {@link TelegramApiException} на каждый вызов. */
     private boolean failing = false;
+
+    /** Байты, которые вернет фейковое скачивание файла. */
+    private byte[] fileBytes = "file content".getBytes(StandardCharsets.UTF_8);
+    /** Если {@code true}, скачивание файла бросит исключение. */
+    private boolean downloadFailing = false;
+
     private Sender sender;
 
     /**
-     * Создаёт прокси-клиент, записывающий вызовы {@code execute}, и оборачивает его в {@link Sender}.
+     * Создаёт прокси-клиент, записывающий вызовы {@code execute},
+     * и оборачивает его в {@link Sender}.
      */
     @BeforeEach
     void setUp() {
@@ -36,13 +49,27 @@ class SenderTest {
                 TelegramClient.class.getClassLoader(),
                 new Class<?>[]{TelegramClient.class},
                 (proxy, method, args) -> {
-                    if (!method.getName().equals("execute")) {
+                    String methodName = method.getName();
+
+                    if (methodName.equals("execute")) {
+                        executed.add(args[0]);
+                        if (failing) {
+                            throw new TelegramApiException("network down");
+                        }
+                        // Если это GetFile, возвращаем фейковый объект File
+                        if (args[0] instanceof GetFile) {
+                            return new File();
+                        }
                         return null;
                     }
-                    executed.add(args[0]);
-                    if (failing) {
-                        throw new TelegramApiException("network down");
+
+                    if (methodName.equals("downloadFileAsStream")) {
+                        if (downloadFailing) {
+                            throw new TelegramApiException("download error");
+                        }
+                        return new ByteArrayInputStream(fileBytes);
                     }
+
                     return null;
                 });
         sender = new Sender(client);
@@ -122,5 +149,66 @@ class SenderTest {
         failing = true;
 
         Assertions.assertDoesNotThrow(() -> sender.ackCallback("cb-1"));
+    }
+
+    /**
+     * Проверяет, что {@code download} сначала запрашивает {@link GetFile},
+     * а затем возвращает байты из {@code downloadFileAsStream}.
+     *
+     * @throws Exception если скачивание не удалось
+     */
+    @Test
+    void downloadRequestsFileAndReturnsBytes() throws Exception {
+        byte[] result = sender.download("file-123");
+
+        Assertions.assertArrayEquals(fileBytes, result);
+        Assertions.assertEquals(1, executed.size());
+
+        GetFile getFile = (GetFile) executed.get(0);
+        Assertions.assertEquals("file-123", getFile.getFileId());
+    }
+
+    /**
+     * Проверяет, что {@code download} пробрасывает исключение, если клиент упал.
+     */
+    @Test
+    void downloadPropagatesException() {
+        downloadFailing = true;
+
+        Assertions.assertThrows(TelegramApiException.class,
+                () -> sender.download("file-123"));
+    }
+
+    /**
+     * Проверяет, что {@code sendDocument} формирует запрос с правильными
+     * параметрами и не падает при передаче клавиатуры.
+     */
+    @Test
+    void sendDocumentFormsCorrectRequest() {
+        byte[] content = "translated text".getBytes(StandardCharsets.UTF_8);
+        InlineKeyboardMarkup keyboard = new Ui().afterTranslation();
+
+        sender.sendDocument(100L, "file.txt", content, "caption", keyboard);
+
+        Assertions.assertEquals(1, executed.size());
+        SendDocument sent = (SendDocument) executed.get(0);
+
+        Assertions.assertEquals("100", sent.getChatId());
+        Assertions.assertEquals("caption", sent.getCaption());
+        Assertions.assertSame(keyboard, sent.getReplyMarkup());
+
+        // Проверяем имя файла
+        Assertions.assertEquals("file.txt", sent.getDocument().getMediaName());
+    }
+
+    /**
+     * Проверяет, что {@code sendDocument} проглатывает исключения клиента.
+     */
+    @Test
+    void sendDocumentSwallowsClientExceptions() {
+        failing = true;
+
+        Assertions.assertDoesNotThrow(() ->
+                sender.sendDocument(1L, "f.txt", new byte[0], "cap", null));
     }
 }

@@ -1,28 +1,33 @@
-package org.translatorBot;
+package org.translatorBot.Session;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.translatorBot.Language;
 
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 
 /**
- * Модульные тесты для {@link SessionStore}: проверяют, что хранилище
- * возвращает одну и ту же сессию для одного {@code chatId}, разные —
- * для разных, сохраняет состояние между вызовами и корректно работает
- * при конкурентном доступе из нескольких потоков.
+ * Модульные тесты для {@link InMemorySessionStore}.
+ * <p>
+ * Проверяют, что хранилище возвращает одну и ту же сессию для одного
+ * {@code chatId}, разные — для разных, сохраняет состояние между вызовами
+ * и корректно работает при конкурентном доступе из нескольких потоков.
  */
-class SessionStoreTest {
+class InMemorySessionStoreTest {
 
     /**
-     * Проверяет, что повторный вызов {@link SessionStore#get(long)} с одним и
-     * тем же {@code chatId} возвращает тот же самый экземпляр сессии.
+     * Проверяет, что повторный вызов {@link InMemorySessionStore#get(long)}
+     * с одним и тем же {@code chatId} возвращает тот же самый экземпляр сессии.
      */
     @Test
     void returnsSameSessionForSameChat() {
-        SessionStore store = new SessionStore();
+        InMemorySessionStore store = new InMemorySessionStore();
 
-        Assertions.assertSame(store.get(1L), store.get(1L));
+        Session first = store.get(1L);
+        Session second = store.get(1L);
+
+        Assertions.assertSame(first, second);
     }
 
     /**
@@ -31,23 +36,28 @@ class SessionStoreTest {
      */
     @Test
     void returnsDifferentSessionsForDifferentChats() {
-        SessionStore store = new SessionStore();
+        InMemorySessionStore store = new InMemorySessionStore();
 
-        Assertions.assertNotSame(store.get(1L), store.get(2L));
+        Session first = store.get(1L);
+        Session second = store.get(2L);
+
+        Assertions.assertNotSame(first, second);
     }
 
     /**
      * Проверяет, что изменения сессии, сделанные через один вызов
-     * {@link SessionStore#get(long)}, видны при последующих вызовах с тем же
-     * {@code chatId} и не затрагивают сессию другого пользователя.
+     * {@link InMemorySessionStore#get(long)}, видны при последующих вызовах
+     * с тем же {@code chatId} и не затрагивают сессию другого пользователя.
      */
     @Test
     void sessionStateIsKeptBetweenCalls() {
-        SessionStore store = new SessionStore();
+        InMemorySessionStore store = new InMemorySessionStore();
+
         store.get(1L).setSource(Language.RU);
 
         Assertions.assertEquals(Language.RU, store.get(1L).getSource());
-        Assertions.assertNull(store.get(2L).getSource());
+        Assertions.assertNull(store.get(2L).getSource(),
+                "Сессия другого чата не должна изменяться");
     }
 
     /**
@@ -59,7 +69,7 @@ class SessionStoreTest {
      */
     @Test
     void concurrentAccessCreatesOnlyOneSession() throws Exception {
-        SessionStore store = new SessionStore();
+        InMemorySessionStore store = new InMemorySessionStore();
         int threadCount = 16;
         CountDownLatch start = new CountDownLatch(1);
         ConcurrentLinkedQueue<Session> seen = new ConcurrentLinkedQueue<>();
@@ -77,15 +87,18 @@ class SessionStoreTest {
             });
             threads[i].start();
         }
+
         start.countDown();
+
         for (Thread t : threads) {
             t.join(5000);
         }
 
         Assertions.assertEquals(threadCount, seen.size());
+
         Session first = seen.peek();
         for (Session s : seen) {
-            Assertions.assertSame(first, s);
+            Assertions.assertSame(first, s, "Все потоки должны получить один объект");
         }
     }
 }
