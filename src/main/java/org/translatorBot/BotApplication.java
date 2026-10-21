@@ -5,17 +5,11 @@ import org.slf4j.LoggerFactory;
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.longpolling.TelegramBotsLongPollingApplication;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
+import org.translatorBot.Handler.*;
 import org.translatorBot.Service.Speech.FallbackSpeechService;
 import org.translatorBot.Service.Speech.GroqSpeechService;
 import org.translatorBot.Service.Speech.SpeechRecognitionService;
 import org.translatorBot.Service.Speech.WhisperSpeechService;
-import org.translatorBot.Handler.DocumentHandler;
-import org.translatorBot.Handler.MaterialHandler;
-import org.translatorBot.Handler.Router;
-import org.translatorBot.Handler.TextHandler;
-import org.translatorBot.Handler.DialogFlow;
-import org.translatorBot.Handler.CallbackHandler;
-import org.translatorBot.Handler.CommandHandler;
 import org.translatorBot.Session.InMemorySessionStore;
 import org.translatorBot.Session.SessionStore;
 import org.translatorBot.Service.Translation.LibreTranslateService;
@@ -106,6 +100,7 @@ public class BotApplication {
         DialogFlow flow = new DialogFlow(sender, ui);
         List<MaterialHandler> handlers = List.of(
                 new TextHandler(sender, translator, ui),
+                new VoiceHandler(sender, speech, translator, ui),
                 new DocumentHandler(sender, translator, ui));
         return new Router(sessions, new CommandHandler(flow),
                 new CallbackHandler(sender, sessions, flow), flow, handlers);
