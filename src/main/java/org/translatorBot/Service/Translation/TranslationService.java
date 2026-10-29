@@ -8,4 +8,6 @@ public interface TranslationService {
     int MAX_TEXT_LENGTH = 4000;
 
     String translate(String text, Language from, Language to) throws Exception;
+
+    Language detect(String text) throws Exception;
 }
