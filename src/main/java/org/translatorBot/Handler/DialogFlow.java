@@ -1,7 +1,6 @@
 package org.translatorBot.Handler;
 
 import org.translatorBot.Language;
-import org.translatorBot.Sender;
 import org.translatorBot.Session.Session;
 import org.translatorBot.Ui;
 
@@ -14,7 +13,7 @@ import org.translatorBot.Ui;
  * соответствующее сообщение.
  */
 public class DialogFlow {
-    private final Sender sender;
+    private final MessageSender sender;
     private final Ui ui;
 
     /**
@@ -23,7 +22,7 @@ public class DialogFlow {
      * @param sender отправитель сообщений
      * @param ui     источник текстов и клавиатур
      */
-    public DialogFlow(Sender sender, Ui ui) {
+    public DialogFlow(MessageSender sender, Ui ui) {
         this.sender = sender;
         this.ui = ui;
     }

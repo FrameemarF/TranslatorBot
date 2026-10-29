@@ -1,20 +1,19 @@
 package org.translatorBot.Handler;
 
-import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
 import org.translatorBot.Language;
-import org.translatorBot.Sender;
+import org.translatorBot.Model.UserCallback;
 import org.translatorBot.Session.Session;
 import org.translatorBot.Session.SessionStore;
 
 /**
  * Обработчик нажатий inline-кнопок.
  * <p>
- * Подтверждает нажатие у Telegram, находит сессию пользователя и сопоставляет
+ * Подтверждает нажатие у платформы, находит сессию пользователя и сопоставляет
  * данные кнопки ({@code callbackData}) с шагом диалога; сами шаги выполняет
  * {@link DialogFlow}.
  */
 public class CallbackHandler {
-    private final Sender sender;
+    private final MessageSender sender;
     private final SessionStore sessions;
     private final DialogFlow flow;
 
@@ -25,23 +24,24 @@ public class CallbackHandler {
      * @param sessions хранилище сессий
      * @param flow     шаги диалога
      */
-    public CallbackHandler(Sender sender, SessionStore sessions, DialogFlow flow) {
+    public CallbackHandler(MessageSender sender, SessionStore sessions, DialogFlow flow) {
         this.sender = sender;
         this.sessions = sessions;
         this.flow = flow;
     }
 
     /**
-     * Подтверждает callback у Telegram и выполняет действие, соответствующее
+     * Подтверждает callback у платформы и выполняет действие, соответствующее
      * данным кнопки.
      *
-     * @param q callback-запрос от Telegram
+     * @param q универсальный callback-запрос
      */
-    public void handle(CallbackQuery q) {
-        sender.ackCallback(q.getId());
-        long chatId = q.getMessage().getChatId();
+    public void handle(UserCallback q) {
+        sender.ackCallback(q.callbackId());
+
+        long chatId = q.chatId();
         Session s = sessions.get(chatId);
-        String data = q.getData();
+        String data = q.data();
 
         switch (data) {
             case "TRANSLATE", "CHANGE_LANG" -> flow.startSourceChoice(chatId, s);
@@ -62,8 +62,12 @@ public class CallbackHandler {
      */
     private void handleLanguage(long chatId, Session s, String data) {
         Language lang = data.length() > 4 ? Language.find(data.substring(4)) : null;
-        if (lang != null && data.startsWith("SRC_")) flow.pickSource(chatId, s, lang);
-        else if (lang != null && data.startsWith("TGT_")) flow.pickTarget(chatId, s, lang);
-        else flow.showUnknown(chatId);
+        if (lang != null && data.startsWith("SRC_")) {
+            flow.pickSource(chatId, s, lang);
+        } else if (lang != null && data.startsWith("TGT_")) {
+            flow.pickTarget(chatId, s, lang);
+        } else {
+            flow.showUnknown(chatId);
+        }
     }
 }

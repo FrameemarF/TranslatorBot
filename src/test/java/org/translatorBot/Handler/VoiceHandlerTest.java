@@ -6,7 +6,6 @@ import org.junit.jupiter.api.Test;
 import org.translatorBot.Language;
 import org.translatorBot.Model.AppKeyboard;
 import org.translatorBot.Model.UserMessage;
-import org.translatorBot.Sender.MessageSender;
 import org.translatorBot.Service.Speech.SpeechRecognitionService;
 import org.translatorBot.Service.Speech.SpeechUnrecognizedException;
 import org.translatorBot.Service.Translation.TranslationService;

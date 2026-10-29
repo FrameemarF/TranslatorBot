@@ -5,12 +5,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.translatorBot.Language;
-import org.translatorBot.Sender;
 import org.translatorBot.Session.Session;
 import org.translatorBot.Ui;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Модульные тесты для {@link DialogFlow}.
