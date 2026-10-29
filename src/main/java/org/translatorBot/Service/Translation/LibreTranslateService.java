@@ -105,4 +105,41 @@ public class LibreTranslateService implements TranslationService {
             return body;
         }
     }
+
+    /**
+     * Определяет язык текста через эндпоинт /detect.
+     *
+     * @param text текст для анализа
+     * @return соответствующий {@link Language} или {@code null}, если язык не распознан или не поддерживается
+     * @throws Exception при ошибке HTTP-запроса или парсинга JSON
+     */
+    @Override
+    public Language detect(String text) throws Exception {
+        ObjectNode body = json.createObjectNode();
+        body.put("q", text);
+
+        String detectEndpoint = endpoint.toString().replace("/translate", "/detect");
+        HttpRequest request = HttpRequest.newBuilder(URI.create(detectEndpoint))
+                .timeout(requestTimeout)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body), StandardCharsets.UTF_8))
+                .build();
+
+        HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+
+        if (response.statusCode() != 200) {
+            throw new IllegalStateException("LibreDetect HTTP " + response.statusCode());
+        }
+
+        JsonNode node = json.readTree(response.body());
+        if (node.isArray() && node.size() > 0) {
+            String langCode = node.get(0).path("language").asText();
+            for (Language l : Language.values()) {
+                if (l.code.equals(langCode)) {
+                    return l;
+                }
+            }
+        }
+        return null; // Не удалось определить язык
+    }
 }

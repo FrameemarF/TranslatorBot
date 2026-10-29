@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.translatorBot.Language;
 import org.translatorBot.Model.AppKeyboard;
 import org.translatorBot.Model.UserMessage;
+import org.translatorBot.Sender.MessageSender;
 import org.translatorBot.Service.Translation.TranslationService;
 import org.translatorBot.Session.Session;
 import org.translatorBot.Ui;

@@ -6,6 +6,8 @@ import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.longpolling.TelegramBotsLongPollingApplication;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
 import org.translatorBot.Handler.*;
+import org.translatorBot.Sender.MessageSender;
+import org.translatorBot.Sender.SenderTG;
 import org.translatorBot.Service.Speech.FallbackSpeechService;
 import org.translatorBot.Service.Speech.GroqSpeechService;
 import org.translatorBot.Service.Speech.SpeechRecognitionService;

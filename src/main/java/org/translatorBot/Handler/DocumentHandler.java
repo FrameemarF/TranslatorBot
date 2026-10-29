@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.translatorBot.Model.MessageType;
 import org.translatorBot.Model.UserMessage;
+import org.translatorBot.Sender.MessageSender;
 import org.translatorBot.Session.Session;
 import org.translatorBot.Service.Translation.TranslationService;
 import org.translatorBot.Ui;

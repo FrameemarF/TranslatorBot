@@ -1,6 +1,7 @@
 package org.translatorBot.Handler;
 
 import org.translatorBot.Language;
+import org.translatorBot.Sender.MessageSender;
 import org.translatorBot.Model.UserCallback;
 import org.translatorBot.Session.Session;
 import org.translatorBot.Session.SessionStore;
