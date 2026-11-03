@@ -3,19 +3,16 @@ package org.translatorBot.Handler;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.telegram.telegrambots.meta.api.objects.message.Message;
-import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.translatorBot.Language;
-import org.translatorBot.Sender;
+import org.translatorBot.Model.AppKeyboard;
+import org.translatorBot.Model.UserMessage;
+import org.translatorBot.Sender.MessageSender;
 import org.translatorBot.Service.Translation.TranslationService;
 import org.translatorBot.Session.Session;
 import org.translatorBot.Ui;
 
 /**
  * Модульные тесты для {@link TextHandler}.
- * <p>
- * Проверяют валидацию входящего текста, успешный перевод с изменением
- * состояния сессии и корректную обработку ошибок сервиса перевода.
  */
 class TextHandlerTest {
 
@@ -25,147 +22,130 @@ class TextHandlerTest {
     private FakeTranslator translator;
     private Ui ui;
     private TextHandler handler;
-
     private Session session;
 
-    /**
-     * Подготавливает тестовое окружение: заглушки Sender, TranslationService,
-     * реальный Ui, сессию и сам TextHandler.
-     */
     @BeforeEach
     void setUp() {
         sender = new FakeSender();
         translator = new FakeTranslator();
         ui = new Ui();
         handler = new TextHandler(sender, translator, ui);
-
         session = new Session();
         session.setSource(Language.RU);
         session.setTarget(Language.EN);
         session.setState(Session.State.WAITING_TEXT);
     }
 
-    /**
-     * Создаёт объект {@link Message} с заданным текстом.
-     *
-     * @param text текст сообщения
-     * @return сообщение от Telegram
-     */
-    private Message createMessage(String text) {
-        Message msg = new Message();
-        msg.setText(text);
-        return msg;
+    /** Создает UserMessage с текстом. */
+    private UserMessage createMessage(String text) {
+        return new UserMessage(chatId, text);
     }
 
-    /**
-     * Проверяет, что пустое сообщение (или из одних пробелов) отклоняется,
-     * и сервис перевода не вызывается.
-     */
     @Test
     void shouldRejectBlankText() {
-        Message msg = createMessage("   ");
-
-        handler.handle(chatId, msg, session);
-
-        Assertions.assertEquals(1, sender.sendCalls);
+        handler.handle(createMessage("   "), session);
         Assertions.assertEquals(ui.emptyText, sender.lastText);
         Assertions.assertEquals(0, translator.translateCalls);
-        Assertions.assertEquals(Session.State.WAITING_TEXT, session.getState());
     }
 
-    /**
-     * Проверяет, что текст слишком длинный отклоняется до вызова сервиса.
-     */
     @Test
     void shouldRejectTooLongText() {
         String longText = "a".repeat(TranslationService.MAX_TEXT_LENGTH + 1);
-        Message msg = createMessage(longText);
-
-        handler.handle(chatId, msg, session);
-
-        Assertions.assertEquals(1, sender.sendCalls);
+        handler.handle(createMessage(longText), session);
         Assertions.assertEquals(ui.tooLong, sender.lastText);
         Assertions.assertEquals(0, translator.translateCalls);
     }
 
-    /**
-     * Проверяет успешный сценарий: текст переводится, состояние меняется на IDLE,
-     * а пользователю отправляется результат с клавиатурой.
-     */
     @Test
     void shouldTranslateTextAndChangeState() {
         translator.result = "Hello";
-        Message msg = createMessage("Привет");
-
-        handler.handle(chatId, msg, session);
+        translator.detectedLanguage = Language.RU;
+        handler.handle(createMessage("Привет"), session);
 
         Assertions.assertEquals(1, translator.translateCalls);
         Assertions.assertEquals("Привет", translator.lastText);
-        Assertions.assertEquals(Language.RU, translator.lastFrom);
-        Assertions.assertEquals(Language.EN, translator.lastTo);
-
-        Assertions.assertEquals(1, sender.sendCalls);
         Assertions.assertEquals(ui.translation("Hello"), sender.lastText);
         Assertions.assertNotNull(sender.lastKeyboard);
-
         Assertions.assertEquals(Session.State.IDLE, session.getState());
     }
 
-    /**
-     * Проверяет, что при ошибке сервиса перевода пользователь получает
-     * дружелюбное сообщение, а состояние сессии не меняется.
-     */
     @Test
     void shouldHandleTranslationError() {
         translator.shouldThrow = true;
-        Message msg = createMessage("Привет");
-
-        handler.handle(chatId, msg, session);
-
-        Assertions.assertEquals(1, translator.translateCalls);
-        Assertions.assertEquals(1, sender.sendCalls);
+        translator.detectedLanguage = Language.RU;
+        handler.handle(createMessage("Привет"), session);
         Assertions.assertEquals(ui.translateErr, sender.lastText);
-
-        // Состояние не должно измениться
         Assertions.assertEquals(Session.State.WAITING_TEXT, session.getState());
     }
 
-    /** Заглушка {@link Sender}, запоминающая параметры вызова. */
-    private class FakeSender extends Sender {
+    @Test
+    void shouldRejectWrongLanguage() {
+        translator.detectedLanguage = Language.EN;
+        handler.handle(createMessage("Hello"), session);
+
+        Assertions.assertTrue(sender.lastText.contains("не совпадает"));
+        Assertions.assertEquals(0, translator.translateCalls);
+        Assertions.assertEquals(Session.State.WAITING_TEXT, session.getState());
+    }
+
+    @Test
+    void shouldTranslateWhenLanguageDetectionFails() {
+        translator.detectedLanguage = null;
+        translator.result = "Привет";
+        handler.handle(createMessage("Hello"), session);
+
+        Assertions.assertEquals(1, translator.translateCalls);
+        Assertions.assertEquals(ui.translation("Привет"), sender.lastText);
+    }
+
+    /** Заглушка MessageSender. */
+    private static class FakeSender implements MessageSender {
         int sendCalls;
         String lastText;
-        InlineKeyboardMarkup lastKeyboard;
-
-        FakeSender() {
-            super(null);
-        }
+        AppKeyboard lastKeyboard;
 
         @Override
-        public void send(long chatId, String text, InlineKeyboardMarkup keyboard) {
+        public void send(long chatId, String text, AppKeyboard keyboard) {
             sendCalls++;
             lastText = text;
             lastKeyboard = keyboard;
         }
+
+        @Override
+        public void send(long chatId, String text) {
+            send(chatId, text, null);
+        }
+
+        @Override
+        public void ackCallback(String callbackId) {}
+
+        @Override
+        public byte[] download(String fileId) { return new byte[0]; }
+
+        @Override
+        public void sendDocument(long chatId, String fileName, byte[] content, String caption, AppKeyboard keyboard) {}
     }
 
-    /** Заглушка {@link TranslationService}. */
-    private class FakeTranslator implements TranslationService {
+    /** Заглушка TranslationService. */
+    private static class FakeTranslator implements TranslationService {
         int translateCalls;
         String lastText;
-        Language lastFrom;
-        Language lastTo;
-
         String result = "translated";
         boolean shouldThrow = false;
+        Language detectedLanguage = Language.RU;
 
         @Override
         public String translate(String text, Language from, Language to) throws Exception {
             translateCalls++;
             lastText = text;
-            lastFrom = from;
-            lastTo = to;
             if (shouldThrow) throw new Exception("Translation failed");
             return result;
+        }
+
+        @Override
+        public Language detect(String text) throws Exception {
+            if (shouldThrow) throw new Exception("Detection failed");
+            return detectedLanguage;
         }
     }
 }

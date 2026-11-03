@@ -1,18 +1,28 @@
 package org.translatorBot.Handler;
 
-import org.telegram.telegrambots.meta.api.objects.message.Message;
+import org.translatorBot.Model.UserMessage;
 import org.translatorBot.Session.Session;
 
 /**
  * Обработчик одного типа материала для перевода (текст, файл, голос).
- * Router выбирает подходящий обработчик через {@link #supports(Message)}.
- * К моменту вызова {@link #handle} языки в сессии уже выбраны.
+ * Router выбирает подходящий обработчик через {@link #supports(UserMessage)}.
+ * К моменту вызова {@link #handle(UserMessage, Session)} языки в сессии уже выбраны.
  */
 public interface MaterialHandler {
 
-    /** @return {@code true}, если обработчик умеет работать с этим сообщением */
-    boolean supports(Message message);
+    /**
+     * Проверяет, умеет ли обработчик работать с данным сообщением.
+     *
+     * @param message входящее сообщение
+     * @return {@code true}, если обработчик поддерживает этот тип
+     */
+    boolean supports(UserMessage message);
 
-    /** Обрабатывает материал: проверяет, переводит и отправляет ответ. */
-    void handle(long chatId, Message message, Session session);
+    /**
+     * Обрабатывает материал: проверяет, переводит и отправляет ответ.
+     *
+     * @param message входящее сообщение
+     * @param session сессия пользователя
+     */
+    void handle(UserMessage message, Session session);
 }

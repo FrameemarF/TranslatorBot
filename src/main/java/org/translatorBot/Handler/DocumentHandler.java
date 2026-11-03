@@ -2,9 +2,9 @@ package org.translatorBot.Handler;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.telegram.telegrambots.meta.api.objects.Document;
-import org.telegram.telegrambots.meta.api.objects.message.Message;
-import org.translatorBot.Sender;
+import org.translatorBot.Model.MessageType;
+import org.translatorBot.Model.UserMessage;
+import org.translatorBot.Sender.MessageSender;
 import org.translatorBot.Session.Session;
 import org.translatorBot.Service.Translation.TranslationService;
 import org.translatorBot.Ui;
@@ -23,7 +23,7 @@ public class DocumentHandler implements MaterialHandler {
 
     private final Logger log = LoggerFactory.getLogger(getClass());
 
-    private final Sender sender;
+    private final MessageSender sender;
     private final TranslationService translator;
     private final Ui ui;
 
@@ -34,7 +34,7 @@ public class DocumentHandler implements MaterialHandler {
      * @param translator сервис перевода текста
      * @param ui         источник текстов и клавиатур
      */
-    public DocumentHandler(Sender sender, TranslationService translator, Ui ui) {
+    public DocumentHandler(MessageSender sender, TranslationService translator, Ui ui) {
         this.sender = sender;
         this.translator = translator;
         this.ui = ui;
@@ -43,12 +43,12 @@ public class DocumentHandler implements MaterialHandler {
     /**
      * Проверяет, является ли сообщение документом.
      *
-     * @param message сообщение от Telegram
+     * @param message входящее сообщение
      * @return {@code true}, если сообщение содержит документ
      */
     @Override
-    public boolean supports(Message message) {
-        return message.hasDocument();
+    public boolean supports(UserMessage message) {
+        return message.type() == MessageType.DOCUMENT;
     }
 
     /**
@@ -56,37 +56,39 @@ public class DocumentHandler implements MaterialHandler {
      * и отправляет результат пользователю. При ошибках отправляет
      * соответствующее сообщение.
      *
-     * @param chatId  идентификатор чата
-     * @param message сообщение с документом
+     * @param message входящее сообщение с документом
      * @param session сессия пользователя с выбранными языками
      */
     @Override
-    public void handle(long chatId, Message message, Session session) {
-        Document doc = message.getDocument();
-        String name = doc.getFileName();
+    public void handle(UserMessage message, Session session) {
+        long chatId = message.chatId();
+        String name = message.fileName();
+        String fileId = message.fileId();
+        Long size = message.fileSize();
 
         if (name == null || !name.toLowerCase().endsWith(".txt")) {
             sender.send(chatId, ui.fileNotTxt);
             return;
         }
-        if (doc.getFileSize() != null && doc.getFileSize() > MAX_FILE_BYTES) {
+        if (size != null && size > MAX_FILE_BYTES) {
             sender.send(chatId, ui.fileTooBig);
             return;
         }
-        if (doc.getFileSize() != null && doc.getFileSize() == 0) {
+        if (size != null && size == 0) {
             sender.send(chatId, ui.fileEmpty);
             return;
         }
 
         String text;
         try {
-            byte[] bytes = sender.download(doc.getFileId());
+            byte[] bytes = sender.download(fileId);
             text = new String(bytes, StandardCharsets.UTF_8).replace("\uFEFF", "").strip();
         } catch (Exception e) {
             log.error("File download failed for chat {}", chatId, e);
             sender.send(chatId, ui.fileReadErr);
             return;
         }
+
         if (text.isEmpty()) {
             sender.send(chatId, ui.fileEmpty);
             return;
@@ -98,7 +100,6 @@ public class DocumentHandler implements MaterialHandler {
 
         try {
             String result = translator.translate(text, session.getSource(), session.getTarget());
-            session.setState(Session.State.IDLE);
             String base = name.substring(0, name.length() - 4);
             sender.sendDocument(chatId, base + "_translated.txt",
                     result.getBytes(StandardCharsets.UTF_8), ui.fileReady, ui.afterTranslation());

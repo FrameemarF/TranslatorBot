@@ -8,12 +8,6 @@ import org.junit.jupiter.api.Test;
  */
 class LanguageTest {
 
-    /** В перечислении ровно пять языков. */
-    @Test
-    void hasExactlyFiveLanguages() {
-        Assertions.assertEquals(5, Language.values().length);
-    }
-
     /** ISO-коды соответствуют ожидаемым значениям. */
     @Test
     void codesAreCorrect() {

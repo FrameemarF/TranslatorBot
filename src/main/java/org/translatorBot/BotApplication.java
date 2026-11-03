@@ -6,6 +6,8 @@ import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.longpolling.TelegramBotsLongPollingApplication;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
 import org.translatorBot.Handler.*;
+import org.translatorBot.Sender.MessageSender;
+import org.translatorBot.Sender.SenderTG;
 import org.translatorBot.Service.Speech.FallbackSpeechService;
 import org.translatorBot.Service.Speech.GroqSpeechService;
 import org.translatorBot.Service.Speech.SpeechRecognitionService;
@@ -14,6 +16,8 @@ import org.translatorBot.Session.InMemorySessionStore;
 import org.translatorBot.Session.SessionStore;
 import org.translatorBot.Service.Translation.LibreTranslateService;
 import org.translatorBot.Service.Translation.TranslationService;
+import org.translatorBot.Telegram.TelegramBotAdapter;
+import org.translatorBot.Telegram.TelegramMapper;
 
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -53,6 +57,8 @@ public class BotApplication {
         String token = config.getBotToken();
 
         Router router = buildRouter(config);
+        TelegramMapper mapper = new TelegramMapper();
+        TelegramBotAdapter adapter = new TelegramBotAdapter(router, mapper);
 
         CountDownLatch shutdownLatch = new CountDownLatch(1);
         Runtime.getRuntime().addShutdownHook(
@@ -61,7 +67,7 @@ public class BotApplication {
         try (TelegramBotsLongPollingApplication app =
                      new TelegramBotsLongPollingApplication()) {
 
-            app.registerBot(token, router);
+            app.registerBot(token, adapter);
 
             log.info("TranslateBot started (LibreTranslate URL: {})",
                     config.getLibreTranslateUrl());
@@ -84,7 +90,10 @@ public class BotApplication {
      */
     Router buildRouter(BotConfig config) {
         TelegramClient client = new OkHttpTelegramClient(config.getBotToken());
-        Sender sender = new Sender(client);
+
+        TelegramMapper mapper = new TelegramMapper();
+        MessageSender sender = new SenderTG(client, mapper);
+
         SessionStore sessions = new InMemorySessionStore();
         TranslationService translator = new LibreTranslateService(
                 config.getLibreTranslateUrl());
@@ -102,6 +111,7 @@ public class BotApplication {
                 new TextHandler(sender, translator, ui),
                 new VoiceHandler(sender, speech, translator, ui),
                 new DocumentHandler(sender, translator, ui));
+
         return new Router(sessions, new CommandHandler(flow),
                 new CallbackHandler(sender, sessions, flow), flow, handlers);
     }
