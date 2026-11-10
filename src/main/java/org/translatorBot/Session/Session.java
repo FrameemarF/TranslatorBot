@@ -13,20 +13,35 @@ public class Session {
     /**
      * Возможные шаги сценария перевода, в которых может находиться пользователь.
      */
-    public enum State { IDLE, CHOOSING_SOURCE, CHOOSING_TARGET, WAITING_TEXT }
+    public enum State {IDLE, CHOOSING_SOURCE, CHOOSING_TARGET, WAITING_TEXT}
 
     private State state = State.IDLE;
     private Language source;
     private Language target;
 
-    public State getState() { return state; }
-    public void setState(State state) { this.state = state; }
+    public State getState() {
+        return state;
+    }
 
-    public Language getSource() { return source; }
-    public void setSource(Language source) { this.source = source; }
+    public void setState(State state) {
+        this.state = state;
+    }
 
-    public Language getTarget() { return target; }
-    public void setTarget(Language target) { this.target = target; }
+    public Language getSource() {
+        return source;
+    }
+
+    public void setSource(Language source) {
+        this.source = source;
+    }
+
+    public Language getTarget() {
+        return target;
+    }
+
+    public void setTarget(Language target) {
+        this.target = target;
+    }
 
     /**
      * Сбрасывает сессию в исходное состояние: переводит её в {@link State#IDLE}

@@ -4,27 +4,37 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.translatorBot.Model.MessageType;
 import org.translatorBot.Model.UserMessage;
+import org.translatorBot.Sender.FileDownloadException;
 import org.translatorBot.Sender.MessageSender;
 import org.translatorBot.Session.Session;
+import org.translatorBot.Service.Translation.TranslationException;
 import org.translatorBot.Service.Translation.TranslationService;
 import org.translatorBot.Ui;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * Перевод файла .txt: в ответ приходит файл name_translated.txt.
  * <p>
- * Проверяет расширение и размер файла, скачивает его содержимое,
- * переводит текст и отправляет результат обратно пользователю в виде документа.
+ * Проверяет расширение и размер файла, скачивает его во временный файл,
+ * читает текст, переводит и отправляет результат обратно пользователю
+ * в виде документа. Временные файлы удаляются после обработки.
  */
 public class DocumentHandler implements MaterialHandler {
     /** Максимально допустимый размер загружаемого файла в байтах (5 МБ). */
     static final long MAX_FILE_BYTES = 5L * 1024 * 1024;
 
+    /** Логгер обработчика. */
     private final Logger log = LoggerFactory.getLogger(getClass());
 
+    /** Отправитель сообщений и загрузчик файлов. */
     private final MessageSender sender;
+    /** Сервис перевода текста. */
     private final TranslationService translator;
+    /** Источник текстов и клавиатур. */
     private final Ui ui;
 
     /**
@@ -40,15 +50,10 @@ public class DocumentHandler implements MaterialHandler {
         this.ui = ui;
     }
 
-    /**
-     * Проверяет, является ли сообщение документом.
-     *
-     * @param message входящее сообщение
-     * @return {@code true}, если сообщение содержит документ
-     */
+    /** {@inheritDoc} */
     @Override
-    public boolean supports(UserMessage message) {
-        return message.type() == MessageType.DOCUMENT;
+    public MessageType type() {
+        return MessageType.DOCUMENT;
     }
 
     /**
@@ -79,33 +84,59 @@ public class DocumentHandler implements MaterialHandler {
             return;
         }
 
-        String text;
+        Path downloaded = null;
+        Path translated = null;
         try {
-            byte[] bytes = sender.download(fileId);
-            text = new String(bytes, StandardCharsets.UTF_8).replace("\uFEFF", "").strip();
-        } catch (Exception e) {
-            log.error("File download failed for chat {}", chatId, e);
-            sender.send(chatId, ui.fileReadErr);
-            return;
-        }
+            downloaded = sender.download(fileId);
+            String text = Files.readString(downloaded, StandardCharsets.UTF_8)
+                    .replace("\uFEFF", "")
+                    .strip();
 
-        if (text.isEmpty()) {
-            sender.send(chatId, ui.fileEmpty);
-            return;
-        }
-        if (text.length() > TranslationService.MAX_TEXT_LENGTH) {
-            sender.send(chatId, ui.tooLong);
-            return;
-        }
+            if (text.isEmpty()) {
+                sender.send(chatId, ui.fileEmpty);
+                return;
+            }
+            if (text.length() > TranslationService.MAX_TEXT_LENGTH) {
+                sender.send(chatId, ui.tooLong);
+                return;
+            }
 
-        try {
             String result = translator.translate(text, session.getSource(), session.getTarget());
             String base = name.substring(0, name.length() - 4);
-            sender.sendDocument(chatId, base + "_translated.txt",
-                    result.getBytes(StandardCharsets.UTF_8), ui.fileReady, ui.afterTranslation());
-        } catch (Exception e) {
+
+            translated = Files.createTempFile("translatorbot-", ".txt");
+            Files.writeString(translated, result, StandardCharsets.UTF_8);
+
+            sender.sendDocument(chatId, base + "_translated.txt", translated,
+                    ui.fileReady, ui.afterTranslation());
+        } catch (FileDownloadException e) {
+            log.error("File download failed for chat {}", chatId, e);
+            sender.send(chatId, ui.fileReadErr);
+        } catch (IOException e) {
+            log.error("File read/write failed for chat {}", chatId, e);
+            sender.send(chatId, ui.fileReadErr);
+        } catch (TranslationException e) {
             log.error("Translation failed for chat {}", chatId, e);
             sender.send(chatId, ui.translateErr);
+        } finally {
+            deleteQuietly(downloaded);
+            deleteQuietly(translated);
+        }
+    }
+
+    /**
+     * Удаляет временный файл, не мешая основному сценарию при ошибке удаления.
+     *
+     * @param path путь к файлу или {@code null}
+     */
+    private void deleteQuietly(Path path) {
+        if (path == null) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException e) {
+            log.warn("Failed to delete temporary file {}", path, e);
         }
     }
 }

@@ -115,8 +115,8 @@ class CallbackHandlerTest {
 
         @Override public void send(long chatId, String text) {}
         @Override public void send(long chatId, String text, AppKeyboard keyboard) {}
-        @Override public byte[] download(String fileId) { return new byte[0]; }
-        @Override public void sendDocument(long chatId, String fileName, byte[] content, String caption, AppKeyboard keyboard) {}
+        @Override public java.nio.file.Path download(String fileId) { return null; }
+        @Override public void sendDocument(long chatId, String fileName, java.nio.file.Path content, String caption, AppKeyboard keyboard) {}
     }
 
     private static class FakeDialogFlow extends DialogFlow {

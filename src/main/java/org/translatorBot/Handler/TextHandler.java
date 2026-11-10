@@ -2,13 +2,16 @@ package org.translatorBot.Handler;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.translatorBot.Language;
 import org.translatorBot.Model.MessageType;
 import org.translatorBot.Model.UserMessage;
 import org.translatorBot.Sender.MessageSender;
 import org.translatorBot.Session.Session;
+import org.translatorBot.Service.Translation.TranslationException;
 import org.translatorBot.Service.Translation.TranslationService;
 import org.translatorBot.Ui;
-import org.translatorBot.Language;
+
+import java.util.Optional;
 
 /**
  * Перевод обычного текстового сообщения.
@@ -17,10 +20,14 @@ import org.translatorBot.Language;
  * с учетом выбранных в сессии языков и отправляет результат пользователю.
  */
 public class TextHandler implements MaterialHandler {
+    /** Логгер обработчика. */
     private final Logger log = LoggerFactory.getLogger(getClass());
 
+    /** Отправитель сообщений. */
     private final MessageSender sender;
+    /** Сервис перевода текста. */
     private final TranslationService translator;
+    /** Источник текстов и клавиатур. */
     private final Ui ui;
 
     /**
@@ -36,15 +43,10 @@ public class TextHandler implements MaterialHandler {
         this.ui = ui;
     }
 
-    /**
-     * Проверяет, является ли сообщение текстовым.
-     *
-     * @param message входящее сообщение
-     * @return {@code true}, если сообщение содержит текст
-     */
+    /** {@inheritDoc} */
     @Override
-    public boolean supports(UserMessage message) {
-        return message.type() == MessageType.TEXT;
+    public MessageType type() {
+        return MessageType.TEXT;
     }
 
     /**
@@ -68,9 +70,9 @@ public class TextHandler implements MaterialHandler {
             return;
         }
         try {
-            Language detected = translator.detect(text);
-            if (detected != null && detected != session.getSource()) {
-                sender.send(chatId, "⚠️ Язык отправленного текста (" + detected.label +
+            Optional<Language> detected = translator.detect(text);
+            if (detected.isPresent() && detected.get() != session.getSource()) {
+                sender.send(chatId, "⚠️ Язык отправленного текста (" + detected.get().label +
                         ") не совпадает с выбранным языком источника (" + session.getSource().label +
                         "). Пожалуйста, отправь текст на правильном языке или выбери другой язык источника.");
                 return;
@@ -78,7 +80,7 @@ public class TextHandler implements MaterialHandler {
             String result = translator.translate(text, session.getSource(), session.getTarget());
             session.setState(Session.State.IDLE);
             sender.send(chatId, ui.translation(result), ui.afterTranslation());
-        } catch (Exception e) {
+        } catch (TranslationException e) {
             log.error("Translation failed for chat {}", chatId, e);
             sender.send(chatId, ui.translateErr);
         }

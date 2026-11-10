@@ -5,20 +5,35 @@ import java.io.InputStream;
 import java.util.Properties;
 
 /**
- * Конфигурация бота: токен Telegram и параметры LibreTranslate.
+ * Конфигурация бота: токены Telegram и Discord, параметры LibreTranslate,
+ * распознавания речи и базы данных.
  * <p>
  * Значения загружаются из переменных окружения (приоритет) или из
- * {@code application.properties} в classpath. Для токена бота отсутствие
- * значения — критическая ошибка; URL LibreTranslate по умолчанию
- * {@code http://localhost:5000}, API-ключ опционален.
+ * {@code application.properties} в classpath. Для токена Telegram отсутствие
+ * значения — критическая ошибка; токен Discord опционален: без него бот
+ * работает только в Telegram.
  */
 public class BotConfig {
+    /** Токен Telegram-бота. */
     private final String botToken;
+    /** Токен Discord-бота или {@code null}, если Discord не настроен. */
+    private final String discordToken;
+    /** Базовый URL LibreTranslate. */
     private final String libreTranslateUrl;
+    /** API-ключ Groq. */
     private final String groqApiKey;
+    /** Модель Whisper на Groq. */
     private final String groqModel;
+    /** Провайдер распознавания речи. */
     private final String speechProvider;
+    /** Адрес локального Whisper-сервиса. */
     private final String whisperUrl;
+    /** JDBC-адрес базы данных истории. */
+    private final String databaseUrl;
+    /** Имя пользователя базы данных. */
+    private final String databaseUser;
+    /** Пароль пользователя базы данных. */
+    private final String databasePassword;
 
     /**
      * Загружает конфигурацию из {@code application.properties} и переменных окружения.
@@ -44,6 +59,10 @@ public class BotConfig {
                     "Bot token is missing: set BOT_TOKEN env or bot.token in application.properties");
         }
 
+        this.discordToken = firstNonBlank(
+                System.getenv("DISCORD_TOKEN"),
+                props.getProperty("discord.token"));
+
         this.libreTranslateUrl = firstNonBlank(
                 System.getenv("LIBRETRANSLATE_URL"),
                 props.getProperty("libretranslate.url"),
@@ -67,6 +86,21 @@ public class BotConfig {
                 System.getenv("WHISPER_URL"),
                 props.getProperty("whisper.url"),
                 "http://localhost:9000");
+
+        this.databaseUrl = firstNonBlank(
+                System.getenv("DATABASE_URL"),
+                props.getProperty("database.url"),
+                "jdbc:postgresql://localhost:5432/translatorbot");
+
+        this.databaseUser = firstNonBlank(
+                System.getenv("DATABASE_USER"),
+                props.getProperty("database.user"),
+                "translatorbot");
+
+        this.databasePassword = firstNonBlank(
+                System.getenv("DATABASE_PASSWORD"),
+                props.getProperty("database.password"),
+                "translatorbot");
     }
 
     /**
@@ -82,8 +116,11 @@ public class BotConfig {
         return null;
     }
 
-    /** @return токен Telegram-бота (никогда не {@code null}) */
+    /** @return токен Telegram-бота (никогда {@code null}) */
     public String getBotToken() { return botToken; }
+
+    /** @return токен Discord-бота или {@code null}, если Discord не настроен */
+    public String getDiscordToken() { return discordToken; }
 
     /** @return базовый URL LibreTranslate (по умолчанию {@code http://localhost:5000}) */
     public String getLibreTranslateUrl() { return libreTranslateUrl; }
@@ -99,4 +136,13 @@ public class BotConfig {
 
     /** @return адрес локального Whisper-сервиса */
     public String getWhisperUrl() { return whisperUrl; }
+
+    /** @return JDBC-адрес базы данных истории */
+    public String getDatabaseUrl() { return databaseUrl; }
+
+    /** @return имя пользователя базы данных */
+    public String getDatabaseUser() { return databaseUser; }
+
+    /** @return пароль пользователя базы данных */
+    public String getDatabasePassword() { return databasePassword; }
 }

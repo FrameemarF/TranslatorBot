@@ -3,17 +3,24 @@ package org.translatorBot.Handler;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.translatorBot.Language;
 import org.translatorBot.Model.AppKeyboard;
+import org.translatorBot.Model.MessageType;
 import org.translatorBot.Model.UserMessage;
 import org.translatorBot.Sender.MessageSender;
 import org.translatorBot.Service.Speech.SpeechRecognitionService;
+import org.translatorBot.Service.Speech.SpeechUnavailableException;
 import org.translatorBot.Service.Speech.SpeechUnrecognizedException;
+import org.translatorBot.Service.Translation.TranslationException;
 import org.translatorBot.Service.Translation.TranslationService;
 import org.translatorBot.Session.Session;
 import org.translatorBot.Ui;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Optional;
 
 /**
  * Модульные тесты для {@link VoiceHandler}.
@@ -21,6 +28,9 @@ import java.io.IOException;
 class VoiceHandlerTest {
     private final long chatId = 100L;
     private final String fileId = "voice-file-id";
+
+    @TempDir
+    Path tempDir;
 
     private RecordingSender sender;
     private FakeSpeech speech;
@@ -31,7 +41,7 @@ class VoiceHandlerTest {
 
     @BeforeEach
     void setUp() {
-        sender = new RecordingSender();
+        sender = new RecordingSender(tempDir);
         speech = new FakeSpeech();
         translator = new FakeTranslator();
         ui = new Ui();
@@ -46,14 +56,9 @@ class VoiceHandlerTest {
         return new UserMessage(chatId, fileId, duration);
     }
 
-    private UserMessage textMessage(String text) {
-        return new UserMessage(chatId, text);
-    }
-
     @Test
-    void supportsOnlyVoiceMessages() {
-        Assertions.assertTrue(handler.supports(voiceMessage(5)));
-        Assertions.assertFalse(handler.supports(textMessage("Привет")));
+    void handlesVoiceMessages() {
+        Assertions.assertEquals(MessageType.VOICE, handler.type());
     }
 
     @Test
@@ -98,7 +103,7 @@ class VoiceHandlerTest {
 
     @Test
     void unavailableSpeechServiceShowsUnavailableMessage() {
-        speech.error = new IOException("api key missing");
+        speech.error = new SpeechUnavailableException("api key missing");
         handler.handle(voiceMessage(10), session);
         Assertions.assertEquals(ui.speechUnavailable, sender.lastText);
         Assertions.assertEquals(Session.State.WAITING_TEXT, session.getState());
@@ -133,10 +138,14 @@ class VoiceHandlerTest {
     }
 
     private static class RecordingSender implements MessageSender {
+        private final Path tempDir;
         byte[] content = new byte[]{1, 2, 3};
-        Exception downloadError;
         int downloadCount = 0;
         String lastText;
+
+        RecordingSender(Path tempDir) {
+            this.tempDir = tempDir;
+        }
 
         @Override
         public void send(long chatId, String text) {
@@ -149,22 +158,31 @@ class VoiceHandlerTest {
         }
 
         @Override
-        public byte[] download(String fileId) throws Exception {
+        public Path download(String fileId) {
             downloadCount++;
-            if (downloadError != null) throw downloadError;
-            return content;
+            try {
+                Path file = tempDir.resolve("voice-" + downloadCount + ".ogg");
+                Files.write(file, content);
+                return file;
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
 
-        @Override public void ackCallback(String callbackId) {}
-        @Override public void sendDocument(long chatId, String fileName, byte[] content, String caption, AppKeyboard keyboard) {}
+        @Override
+        public void ackCallback(String callbackId) {}
+
+        @Override
+        public void sendDocument(long chatId, String fileName, Path content,
+                                 String caption, AppKeyboard keyboard) {}
     }
 
     private static class FakeSpeech implements SpeechRecognitionService {
         String reply = "Привет, мир";
-        Exception error;
+        RuntimeException error;
 
         @Override
-        public String recognize(byte[] audio, String fileName, Language language) throws Exception {
+        public String recognize(byte[] audio, String fileName, Language language) {
             if (error != null) throw error;
             return reply;
         }
@@ -179,14 +197,14 @@ class VoiceHandlerTest {
         @Override
         public String translate(String text, Language from, Language to) {
             translateCalls++;
-            if (fail) throw new IllegalStateException("translation failed");
+            if (fail) throw new TranslationException("translation failed");
             return reply;
         }
 
         @Override
-        public Language detect(String text) throws Exception {
-            if (fail) throw new Exception("Detection failed");
-            return detectedLanguage;
+        public Optional<Language> detect(String text) {
+            if (fail) throw new TranslationException("Detection failed");
+            return Optional.ofNullable(detectedLanguage);
         }
     }
 }

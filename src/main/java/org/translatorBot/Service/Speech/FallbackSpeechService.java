@@ -40,8 +40,8 @@ public class FallbackSpeechService implements SpeechRecognitionService {
      * исключение пробрасывается дальше — запасной сервис не вызывается, так как
      * проблема в самом аудио, а не в доступности сервиса.
      * <p>
-     * При прерывании потока ({@link InterruptedException}) флаг прерывания
-     * восстанавливается, исключение пробрасывается.
+     * При прерывании потока флаг прерывания сохраняется, исключение
+     * пробрасывается наружу.
      * <p>
      * При любой другой ошибке основного сервиса (недоступность, таймаут, HTTP-ошибка
      * и т.п.) в лог пишется предупреждение, и запрос повторяется через запасной сервис.
@@ -51,19 +51,18 @@ public class FallbackSpeechService implements SpeechRecognitionService {
      * @param language ожидаемый язык речи
      * @return распознанный текст
      * @throws SpeechUnrecognizedException если в аудио нет речи (от основного сервиса)
-     * @throws InterruptedException        если поток был прерван во время запроса
-     * @throws Exception                   при прочих ошибках основного и запасного сервисов
+     * @throws SpeechRecognitionException  при прочих ошибках основного и запасного сервисов
      */
     @Override
-    public String recognize(byte[] audio, String fileName, Language language) throws Exception {
+    public String recognize(byte[] audio, String fileName, Language language) {
         try {
             return primary.recognize(audio, fileName, language);
         } catch (SpeechUnrecognizedException e) {
             throw e; // в записи нет речи — запасной сервис не поможет
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw e;
-        } catch (Exception e) {
+        } catch (SpeechRecognitionException e) {
+            if (Thread.currentThread().isInterrupted()) {
+                throw e; // прерывание не лечится сменой сервиса
+            }
             log.warn("Primary speech service failed ({}), switching to fallback", e.getMessage());
             return fallback.recognize(audio, fileName, language);
         }

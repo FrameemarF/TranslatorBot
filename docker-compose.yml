@@ -30,6 +30,25 @@ services:
     volumes:
       - whisper-cache:/root/.cache  # модель скачивается один раз
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: translatorbot-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: translatorbot
+      POSTGRES_USER: translatorbot
+      POSTGRES_PASSWORD: translatorbot
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U translatorbot -d translatorbot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   lt-models:
   whisper-cache:
+  pg-data:

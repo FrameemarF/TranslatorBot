@@ -1,10 +1,13 @@
 package org.translatorBot.Handler;
 
 import org.translatorBot.Language;
-import org.translatorBot.Sender.MessageSender;
+import org.translatorBot.LanguageCatalog;
 import org.translatorBot.Model.UserCallback;
+import org.translatorBot.Sender.MessageSender;
 import org.translatorBot.Session.Session;
 import org.translatorBot.Session.SessionStore;
+
+import java.util.Optional;
 
 /**
  * Обработчик нажатий inline-кнопок.
@@ -14,9 +17,14 @@ import org.translatorBot.Session.SessionStore;
  * {@link DialogFlow}.
  */
 public class CallbackHandler {
+    /** Отправитель сообщений (подтверждение нажатия). */
     private final MessageSender sender;
+    /** Хранилище сессий пользователей. */
     private final SessionStore sessions;
+    /** Шаги диалога. */
     private final DialogFlow flow;
+    /** Поиск языков по callback-данным. */
+    private final LanguageCatalog languages;
 
     /**
      * Создаёт обработчик нажатий кнопок.
@@ -29,6 +37,7 @@ public class CallbackHandler {
         this.sender = sender;
         this.sessions = sessions;
         this.flow = flow;
+        this.languages = new LanguageCatalog();
     }
 
     /**
@@ -41,7 +50,8 @@ public class CallbackHandler {
         sender.ackCallback(q.callbackId());
 
         long chatId = q.chatId();
-        Session s = sessions.get(chatId);
+        long accountId = q.accountId();
+        Session s = sessions.get(accountId);
         String data = q.data();
 
         switch (data) {
@@ -62,11 +72,14 @@ public class CallbackHandler {
      * @param data   данные кнопки
      */
     private void handleLanguage(long chatId, Session s, String data) {
-        Language lang = data.length() > 4 ? Language.find(data.substring(4)) : null;
-        if (lang != null && data.startsWith("SRC_")) {
-            flow.pickSource(chatId, s, lang);
-        } else if (lang != null && data.startsWith("TGT_")) {
-            flow.pickTarget(chatId, s, lang);
+        Optional<Language> lang = data.length() > 4
+                ? languages.findByName(data.substring(4))
+                : Optional.empty();
+
+        if (lang.isPresent() && data.startsWith("SRC_")) {
+            flow.pickSource(chatId, s, lang.get());
+        } else if (lang.isPresent() && data.startsWith("TGT_")) {
+            flow.pickTarget(chatId, s, lang.get());
         } else {
             flow.showUnknown(chatId);
         }
