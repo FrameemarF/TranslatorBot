@@ -16,9 +16,12 @@ import java.util.List;
  * и передает в маршрутизатор.
  */
 public class TelegramBotAdapter implements LongPollingUpdateConsumer {
+    /** Логгер адаптера. */
     private final Logger log = LoggerFactory.getLogger(getClass());
 
+    /** Маршрутизатор входящих сообщений. */
     private final Router router;
+    /** Преобразователь объектов Telegram. */
     private final TelegramMapper mapper;
 
     /**
@@ -58,10 +61,7 @@ public class TelegramBotAdapter implements LongPollingUpdateConsumer {
             UserCallback callback = mapper.toUserCallback(update.getCallbackQuery());
             router.handleCallback(callback);
         } else if (update.hasMessage()) {
-            UserMessage message = mapper.toUserMessage(update.getMessage());
-            if (message != null) {
-                router.handleMessage(message);
-            }
+            mapper.toUserMessage(update.getMessage()).ifPresent(router::handleMessage);
         }
     }
 }

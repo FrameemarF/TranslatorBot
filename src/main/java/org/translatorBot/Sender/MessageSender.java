@@ -2,8 +2,10 @@ package org.translatorBot.Sender;
 
 import org.translatorBot.Model.AppKeyboard;
 
+import java.nio.file.Path;
+
 /**
- * Универсальный интерфейс для отправки сообщений и скачивания файлов.
+ * Универсальный интерфейс для отправки сообщений и работы с файлами.
  * Позволяет абстрагировать бизнес-логику от конкретной платформы (Telegram, VK и т.д.).
  */
 public interface MessageSender {
@@ -33,22 +35,24 @@ public interface MessageSender {
     void ackCallback(String callbackId);
 
     /**
-     * Скачивает файл по идентификатору.
+     * Скачивает файл по идентификатору во временный файл.
+     * <p>
+     * Вызывающий код отвечает за удаление полученного файла.
      *
      * @param fileId идентификатор файла
-     * @return содержимое файла
-     * @throws Exception при ошибке скачивания
+     * @return путь к скачанному временному файлу
+     * @throws FileDownloadException при ошибке скачивания
      */
-    byte[] download(String fileId) throws Exception;
+    Path download(String fileId);
 
     /**
      * Отправляет документ с подписью и клавиатурой.
      *
      * @param chatId   идентификатор чата
      * @param fileName имя файла
-     * @param content  содержимое файла
+     * @param content  путь к содержимому файла
      * @param caption  подпись
      * @param keyboard универсальная клавиатура или {@code null}
      */
-    void sendDocument(long chatId, String fileName, byte[] content, String caption, AppKeyboard keyboard);
+    void sendDocument(long chatId, String fileName, Path content, String caption, AppKeyboard keyboard);
 }

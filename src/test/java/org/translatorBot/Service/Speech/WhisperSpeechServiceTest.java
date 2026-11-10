@@ -151,13 +151,14 @@ class WhisperSpeechServiceTest {
         Assertions.assertTrue(e.getMessage().contains("500"));
     }
 
-    /** Если контейнер выключен, ошибка соединения пробрасывается наружу. */
+    /** Если контейнер выключен, ошибка оборачивается в {@link SpeechUnavailableException}. */
     @Test
-    void unreachableServerThrowsIoError() {
+    void unreachableServerThrowsUnavailableError() {
         WhisperSpeechService offline = new WhisperSpeechService(baseUrl());
         server.stop(0);
 
-        Assertions.assertThrows(IOException.class,
+        SpeechUnavailableException e = Assertions.assertThrows(SpeechUnavailableException.class,
                 () -> offline.recognize(new byte[]{1}, "voice.ogg", Language.EN));
+        Assertions.assertInstanceOf(IOException.class, e.getCause());
     }
 }

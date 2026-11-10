@@ -8,30 +8,40 @@ import org.translatorBot.Model.UserMessage;
 import org.translatorBot.Session.Session;
 import org.translatorBot.Session.SessionStore;
 
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Маршрутизатор входящих обновлений. Принимает универсальные модели
  * (UserMessage, UserCallback) и распределяет их по обработчикам.
- * Не зависит от конкретной платформы (Telegram, VK и т.д.).
+ * Не зависит от конкретной платформы (Telegram, Discord и т.д.).
  */
 public class Router {
+    /** Логгер маршрутизатора. */
     private final Logger log = LoggerFactory.getLogger(getClass());
 
+    /** Хранилище сессий пользователей. */
     private final SessionStore sessions;
+    /** Обработчик команд. */
     private final CommandHandler commands;
+    /** Обработчик нажатий кнопок. */
     private final CallbackHandler callbacks;
+    /** Шаги диалога. */
     private final DialogFlow flow;
-    private final List<MaterialHandler> handlers;
+    /** Обработчики материалов по типу сообщения. */
+    private final Map<MessageType, MaterialHandler> handlers;
 
     /**
-     * Создаёт маршрутизатор с заданными зависимостями.
+     * Создаёт маршрутизатор с заданными зависимостями. Обработчики
+     * раскладываются по типам сообщений; дубликат типа — ошибка конфигурации.
      *
      * @param sessions  хранилище сессий
      * @param commands  обработчик команд
      * @param callbacks обработчик нажатий кнопок
      * @param flow      шаги диалога
      * @param handlers  обработчики материала (текст, файл, голос)
+     * @throws IllegalArgumentException если для одного типа передано два обработчика
      */
     public Router(SessionStore sessions, CommandHandler commands, CallbackHandler callbacks,
                   DialogFlow flow, List<MaterialHandler> handlers) {
@@ -39,7 +49,14 @@ public class Router {
         this.commands = commands;
         this.callbacks = callbacks;
         this.flow = flow;
-        this.handlers = handlers;
+        this.handlers = new EnumMap<>(MessageType.class);
+        for (MaterialHandler handler : handlers) {
+            MaterialHandler previous = this.handlers.put(handler.type(), handler);
+            if (previous != null) {
+                throw new IllegalArgumentException(
+                        "Duplicate material handler for " + handler.type());
+            }
+        }
     }
 
     /**
@@ -57,7 +74,7 @@ public class Router {
      * @param msg универсальное сообщение
      */
     public void handleMessage(UserMessage msg) {
-        Session session = sessions.get(msg.chatId());
+        Session session = sessions.get(msg.accountId());
 
         if (msg.type() == MessageType.TEXT && msg.text().trim().startsWith("/")) {
             commands.handle(msg.chatId(), msg.text(), session);
@@ -80,11 +97,12 @@ public class Router {
             flow.startSourceChoice(msg.chatId(), s);
             return;
         }
-        handlers.stream()
-                .filter(h -> h.supports(msg))
-                .findFirst()
-                .ifPresentOrElse(
-                        h -> h.handle(msg, s),
-                        () -> flow.showUnsupportedMaterial(msg.chatId()));
+        MaterialHandler handler = handlers.get(msg.type());
+        if (handler == null) {
+            log.debug("No material handler for {}", msg.type());
+            flow.showUnsupportedMaterial(msg.chatId());
+            return;
+        }
+        handler.handle(msg, s);
     }
 }

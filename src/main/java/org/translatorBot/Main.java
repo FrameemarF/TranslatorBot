@@ -11,6 +11,8 @@ public class Main {
      * @param args аргументы командной строки (не используются)
      */
     public static void main(String[] args) {
-        new BotApplication().run();
+        if (!new BotApplication().run()) {
+            System.exit(1);
+        }
     }
 }

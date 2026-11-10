@@ -67,7 +67,7 @@ class LibreTranslateServiceTest {
         status = 400;
         responseBody = "{\"error\":\"Invalid request\"}";
 
-        IllegalStateException e = Assertions.assertThrows(IllegalStateException.class,
+        TranslationException e = Assertions.assertThrows(TranslationException.class,
                 () -> service().translate("x", Language.RU, Language.EN));
         Assertions.assertTrue(e.getMessage().contains("Invalid request"));
     }
@@ -76,7 +76,7 @@ class LibreTranslateServiceTest {
     void throwsOnEmptyTranslation() {
         responseBody = "{\"translatedText\":\"\"}";
 
-        Assertions.assertThrows(IllegalStateException.class,
+        Assertions.assertThrows(TranslationException.class,
                 () -> service().translate("x", Language.RU, Language.EN));
     }
 
@@ -87,7 +87,7 @@ class LibreTranslateServiceTest {
         // LibreTranslate detect возвращает массив объектов
         responseBody = "[{\"language\":\"fr\",\"confidence\":0.99}]";
 
-        Language detected = service().detect("Bonjour le monde");
+        Language detected = service().detect("Bonjour le monde").orElseThrow();
 
         Assertions.assertEquals(Language.FR, detected);
         Assertions.assertEquals("/detect", requestedPath);
@@ -95,12 +95,10 @@ class LibreTranslateServiceTest {
     }
 
     @Test
-    void detectReturnsNullForUnknownLanguage() throws Exception {
+    void detectReturnsEmptyForUnknownLanguage() throws Exception {
         responseBody = "[{\"language\":\"zh\",\"confidence\":0.99}]"; // Китайский не поддерживается нашим enum
 
-        Language detected = service().detect("你好");
-
-        Assertions.assertNull(detected);
+        Assertions.assertTrue(service().detect("你好").isEmpty());
     }
 
     @Test
@@ -108,7 +106,7 @@ class LibreTranslateServiceTest {
         status = 500;
         responseBody = "{\"error\":\"Internal Server Error\"}";
 
-        Assertions.assertThrows(IllegalStateException.class,
+        Assertions.assertThrows(TranslationException.class,
                 () -> service().detect("Some text"));
     }
 }

@@ -3,15 +3,23 @@ package org.translatorBot.Handler;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.translatorBot.Language;
 import org.translatorBot.Model.AppKeyboard;
+import org.translatorBot.Model.MessageType;
 import org.translatorBot.Model.UserMessage;
+import org.translatorBot.Sender.FileDownloadException;
 import org.translatorBot.Sender.MessageSender;
+import org.translatorBot.Service.Translation.TranslationException;
 import org.translatorBot.Service.Translation.TranslationService;
 import org.translatorBot.Session.Session;
 import org.translatorBot.Ui;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Optional;
 
 /**
  * Модульные тесты для {@link DocumentHandler}.
@@ -19,6 +27,9 @@ import java.nio.charset.StandardCharsets;
 class DocumentHandlerTest {
 
     private final long chatId = 100L;
+
+    @TempDir
+    Path tempDir;
 
     private FakeSender sender;
     private FakeTranslator translator;
@@ -28,7 +39,7 @@ class DocumentHandlerTest {
 
     @BeforeEach
     void setUp() {
-        sender = new FakeSender();
+        sender = new FakeSender(tempDir);
         translator = new FakeTranslator();
         ui = new Ui();
         handler = new DocumentHandler(sender, translator, ui);
@@ -43,15 +54,8 @@ class DocumentHandlerTest {
     }
 
     @Test
-    void shouldSupportDocumentMessage() {
-        UserMessage msg = createDocumentMessage("test.txt", 100L);
-        Assertions.assertTrue(handler.supports(msg));
-    }
-
-    @Test
-    void shouldNotSupportTextMessage() {
-        UserMessage msg = new UserMessage(chatId, "just text");
-        Assertions.assertFalse(handler.supports(msg));
+    void handlesDocumentMessages() {
+        Assertions.assertEquals(MessageType.DOCUMENT, handler.type());
     }
 
     @Test
@@ -118,6 +122,7 @@ class DocumentHandlerTest {
         Assertions.assertEquals(fileContent, translator.lastText);
         Assertions.assertEquals(1, sender.sendDocumentCalls);
         Assertions.assertEquals("test_translated.txt", sender.lastDocumentFileName);
+        Assertions.assertEquals("Hello world", sender.lastDocumentContent);
         Assertions.assertEquals(Session.State.WAITING_TEXT, session.getState());
     }
 
@@ -135,50 +140,86 @@ class DocumentHandlerTest {
     }
 
     private static class FakeSender implements MessageSender {
-        int sendCalls; String lastText;
-        int downloadCalls; String lastDownloadFileId;
+        private final Path tempDir;
+        int sendCalls;
+        String lastText;
+        int downloadCalls;
+        String lastDownloadFileId;
         byte[] downloadedBytes = new byte[0];
         boolean shouldThrowOnDownload = false;
-        int sendDocumentCalls; String lastDocumentFileName;
+        int sendDocumentCalls;
+        String lastDocumentFileName;
+        String lastDocumentContent;
+        String lastDocumentCaption;
 
-        @Override public void send(long chatId, String text) { sendCalls++; lastText = text; }
-        @Override public void send(long chatId, String text, AppKeyboard keyboard) { sendCalls++; lastText = text; }
+        FakeSender(Path tempDir) {
+            this.tempDir = tempDir;
+        }
 
         @Override
-        public byte[] download(String fileId) throws Exception {
+        public void send(long chatId, String text) {
+            sendCalls++;
+            lastText = text;
+        }
+
+        @Override
+        public void send(long chatId, String text, AppKeyboard keyboard) {
+            sendCalls++;
+            lastText = text;
+        }
+
+        @Override
+        public Path download(String fileId) {
             downloadCalls++;
             lastDownloadFileId = fileId;
-            if (shouldThrowOnDownload) throw new Exception("Download failed");
-            return downloadedBytes;
+            if (shouldThrowOnDownload) {
+                throw new FileDownloadException("Download failed", new IOException("test"));
+            }
+            try {
+                Path file = tempDir.resolve("download-" + downloadCalls + ".txt");
+                Files.write(file, downloadedBytes);
+                return file;
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
 
         @Override
-        public void sendDocument(long chatId, String fileName, byte[] content, String caption, AppKeyboard keyboard) {
+        public void sendDocument(long chatId, String fileName, Path content,
+                                 String caption, AppKeyboard keyboard) {
             sendDocumentCalls++;
             lastDocumentFileName = fileName;
+            lastDocumentCaption = caption;
+            try {
+                lastDocumentContent = Files.readString(content, StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
 
-        @Override public void ackCallback(String callbackId) {}
+        @Override
+        public void ackCallback(String callbackId) {}
     }
 
     private static class FakeTranslator implements TranslationService {
-        int translateCalls; String lastText;
+        int translateCalls;
+        String lastText;
         String result = "translated";
         boolean shouldThrow = false;
         Language detectedLanguage = Language.RU;
 
         @Override
-        public String translate(String text, Language from, Language to) throws Exception {
+        public String translate(String text, Language from, Language to) {
             translateCalls++;
             lastText = text;
-            if (shouldThrow) throw new Exception("Translation failed");
+            if (shouldThrow) throw new TranslationException("Translation failed");
             return result;
         }
 
         @Override
-        public Language detect(String text) throws Exception {
-            if (shouldThrow) throw new Exception("Detection failed");
-            return detectedLanguage;
+        public Optional<Language> detect(String text) {
+            if (shouldThrow) throw new TranslationException("Detection failed");
+            return Optional.ofNullable(detectedLanguage);
         }
     }
 }

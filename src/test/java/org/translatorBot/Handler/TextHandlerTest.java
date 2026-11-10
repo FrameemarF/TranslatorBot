@@ -7,6 +7,7 @@ import org.translatorBot.Language;
 import org.translatorBot.Model.AppKeyboard;
 import org.translatorBot.Model.UserMessage;
 import org.translatorBot.Sender.MessageSender;
+import org.translatorBot.Service.Translation.TranslationException;
 import org.translatorBot.Service.Translation.TranslationService;
 import org.translatorBot.Session.Session;
 import org.translatorBot.Ui;
@@ -120,10 +121,11 @@ class TextHandlerTest {
         public void ackCallback(String callbackId) {}
 
         @Override
-        public byte[] download(String fileId) { return new byte[0]; }
+        public java.nio.file.Path download(String fileId) { return null; }
 
         @Override
-        public void sendDocument(long chatId, String fileName, byte[] content, String caption, AppKeyboard keyboard) {}
+        public void sendDocument(long chatId, String fileName, java.nio.file.Path content,
+                                 String caption, AppKeyboard keyboard) {}
     }
 
     /** Заглушка TranslationService. */
@@ -135,17 +137,17 @@ class TextHandlerTest {
         Language detectedLanguage = Language.RU;
 
         @Override
-        public String translate(String text, Language from, Language to) throws Exception {
+        public String translate(String text, Language from, Language to) {
             translateCalls++;
             lastText = text;
-            if (shouldThrow) throw new Exception("Translation failed");
+            if (shouldThrow) throw new TranslationException("Translation failed");
             return result;
         }
 
         @Override
-        public Language detect(String text) throws Exception {
-            if (shouldThrow) throw new Exception("Detection failed");
-            return detectedLanguage;
+        public java.util.Optional<Language> detect(String text) {
+            if (shouldThrow) throw new TranslationException("Detection failed");
+            return java.util.Optional.ofNullable(detectedLanguage);
         }
     }
 }
