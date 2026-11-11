@@ -59,6 +59,15 @@ class RouterTest {
         Assertions.assertEquals(0, fakeMaterialHandler.handleCalls);
     }
 
+    /** Проверяет, что в команду передаётся идентификатор аккаунта пользователя. */
+    @Test
+    void commandReceivesAccountId() {
+        UserMessage msg = new UserMessage(chatId, 777L, "/history");
+        router.handleMessage(msg);
+
+        Assertions.assertEquals(777L, fakeCommands.lastAccountId);
+    }
+
     /** Проверяет, что callback-запрос уходит в {@link CallbackHandler}. */
     @Test
     void callbackGoesToCallbackHandler() {
@@ -141,14 +150,16 @@ class RouterTest {
     /** Заглушка {@link CommandHandler}, считающая вызовы. */
     private static class FakeCommandHandler extends CommandHandler {
         int handleCalls;
+        long lastAccountId;
 
         FakeCommandHandler() {
-            super(null);
+            super(null, null);
         }
 
         @Override
-        public void handle(long chatId, String text, Session session) {
+        public void handle(long chatId, long accountId, String text, Session session) {
             handleCalls++;
+            lastAccountId = accountId;
         }
     }
 
@@ -157,7 +168,7 @@ class RouterTest {
         int handleCalls;
 
         FakeCallbackHandler() {
-            super(null, null, null);
+            super(null, null, null, null);
         }
 
         @Override

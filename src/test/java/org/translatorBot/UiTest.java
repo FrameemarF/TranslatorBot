@@ -39,10 +39,22 @@ class UiTest {
         return result;
     }
 
-    /** Главное меню содержит кнопки «Перевести» и «Помощь». */
+    /** Главное меню содержит кнопки «Перевести», «История» и «Помощь». */
     @Test
-    void mainMenuHasTranslateAndHelp() {
-        Assertions.assertEquals(List.of("TRANSLATE", "HELP"), callbackData(ui.mainMenu()));
+    void mainMenuHasTranslateHistoryAndHelp() {
+        Assertions.assertEquals(List.of("TRANSLATE", "HISTORY", "HELP"), callbackData(ui.mainMenu()));
+    }
+
+    /** Меню истории содержит кнопки «Очистить историю» и «В меню». */
+    @Test
+    void historyMenuHasClearAndBack() {
+        Assertions.assertEquals(List.of("CLEAR_HISTORY", "MENU"), callbackData(ui.historyMenu()));
+    }
+
+    /** Пустая история предлагает перевод и возврат в меню. */
+    @Test
+    void emptyHistoryMenuHasTranslateAndBack() {
+        Assertions.assertEquals(List.of("TRANSLATE", "MENU"), callbackData(ui.emptyHistoryMenu()));
     }
 
     /** После перевода показываются кнопки «Ещё», «Сменить язык» и «В меню». */
@@ -73,7 +85,8 @@ class UiTest {
     @Test
     void everyButtonIsValid() {
         List<AppKeyboard> keyboards = List.of(
-                ui.mainMenu(), ui.afterTranslation(), ui.sourceChoice(), ui.targetChoice());
+                ui.mainMenu(), ui.afterTranslation(), ui.sourceChoice(), ui.targetChoice(),
+                ui.historyMenu(), ui.emptyHistoryMenu());
 
         for (AppKeyboard k : keyboards) {
             for (String t : texts(k)) {

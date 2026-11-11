@@ -14,7 +14,7 @@ import java.util.Optional;
  * <p>
  * Подтверждает нажатие у платформы, находит сессию пользователя и сопоставляет
  * данные кнопки ({@code callbackData}) с шагом диалога; сами шаги выполняет
- * {@link DialogFlow}.
+ * {@link DialogFlow}, а историю — {@link HistoryHandler}.
  */
 public class CallbackHandler {
     /** Отправитель сообщений (подтверждение нажатия). */
@@ -23,6 +23,8 @@ public class CallbackHandler {
     private final SessionStore sessions;
     /** Шаги диалога. */
     private final DialogFlow flow;
+    /** Обработчик истории переводов. */
+    private final HistoryHandler history;
     /** Поиск языков по callback-данным. */
     private final LanguageCatalog languages;
 
@@ -32,11 +34,14 @@ public class CallbackHandler {
      * @param sender   отправитель сообщений (подтверждение нажатия)
      * @param sessions хранилище сессий
      * @param flow     шаги диалога
+     * @param history  обработчик истории переводов
      */
-    public CallbackHandler(MessageSender sender, SessionStore sessions, DialogFlow flow) {
+    public CallbackHandler(MessageSender sender, SessionStore sessions, DialogFlow flow,
+                           HistoryHandler history) {
         this.sender = sender;
         this.sessions = sessions;
         this.flow = flow;
+        this.history = history;
         this.languages = new LanguageCatalog();
     }
 
@@ -59,6 +64,8 @@ public class CallbackHandler {
             case "HELP"                     -> flow.showHelp(chatId);
             case "MORE"                     -> flow.askForText(chatId, s);
             case "MENU"                     -> flow.showMenu(chatId, s);
+            case "HISTORY"                  -> history.show(chatId, accountId);
+            case "CLEAR_HISTORY"            -> history.clear(chatId, accountId);
             default                         -> handleLanguage(chatId, s, data);
         }
     }

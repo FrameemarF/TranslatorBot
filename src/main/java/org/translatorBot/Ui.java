@@ -18,15 +18,34 @@ public class Ui {
             "👋 Привет! Это бот TranslateBot.\n" +
                     "Я помогу перевести текст, файл .txt или голосовое сообщение\n" +
                     "между русским, английским, немецким, французским и испанским языками.\n" +
+                    "Историю переводов можно посмотреть командой /history\n" +
+                    "и очистить командой /clear_history.\n" +
                     "Выбери действие:";
 
     /** Справка по командам. */
     public final String help =
             "ℹ️ Список команд:\n" +
-                    "/start      — начало работы с ботом и вывод главного меню\n" +
-                    "/translate  — начать перевод: выбор языка, на который нужно перевести\n" +
-                    "/help       — помощь\n" +
-                    "/back       — вернуться на предыдущий шаг";
+                    "/start          — начало работы с ботом и вывод главного меню\n" +
+                    "/translate      — начать перевод: выбор языка, на который нужно перевести\n" +
+                    "/history        — показать последние переводы\n" +
+                    "/clear_history  — удалить историю переводов\n" +
+                    "/help           — помощь\n" +
+                    "/back           — вернуться на предыдущий шаг";
+
+    /** Заголовок списка истории переводов. */
+    public final String historyHeader = "🕘 Последние переводы:";
+
+    /** Сообщение о пустой истории. */
+    public final String historyEmpty = "📭 История пока пуста. Переведи что-нибудь, и оно появится здесь.";
+
+    /** Сообщение об успешной очистке истории. */
+    public final String historyCleared = "🗑 История переводов удалена.";
+
+    /** Ошибка доступа к истории. */
+    public final String historyUnavailable = "⚠️ Сейчас не удаётся показать историю. Попробуй позже.";
+
+    /** Предупреждение о том, что перевод не сохранился в историю. */
+    public final String historySaveFailed = "⚠️ Не удалось сохранить перевод в историю.";
 
     /** Запрос на отправку материала. */
     public final String askText = "✏️ Отправь текст, файл .txt или голосовое сообщение для перевода.\n\n" +
@@ -107,13 +126,47 @@ public class Ui {
     /**
      * Собирает клавиатуру главного меню.
      *
-     * @return клавиатура с кнопками «Перевести текст» и «Помощь»
+     * @return клавиатура с кнопками «Перевести текст», «История» и «Помощь»
      */
     public AppKeyboard mainMenu() {
         List<List<AppButton>> rows = new ArrayList<>();
         List<AppButton> row = new ArrayList<>();
         row.add(button("\uD83C\uDF10 Перевести текст", "TRANSLATE"));
+        row.add(button("🕘 История", "HISTORY"));
         row.add(button("❓ Помощь", "HELP"));
+        rows.add(row);
+        return new AppKeyboard(rows);
+    }
+
+    /**
+     * Собирает клавиатуру истории переводов.
+     *
+     * @return клавиатура с кнопками «Очистить историю» и «В меню»
+     */
+    public AppKeyboard historyMenu() {
+        List<List<AppButton>> rows = new ArrayList<>();
+
+        List<AppButton> firstRow = new ArrayList<>();
+        firstRow.add(button("🗑 Очистить историю", "CLEAR_HISTORY"));
+        rows.add(firstRow);
+
+        List<AppButton> secondRow = new ArrayList<>();
+        secondRow.add(button("\uD83C\uDFE0 В меню", "MENU"));
+        rows.add(secondRow);
+
+        return new AppKeyboard(rows);
+    }
+
+    /**
+     * Собирает клавиатуру пустой истории.
+     *
+     * @return клавиатура с кнопками «Перевести текст» и «В меню»
+     */
+    public AppKeyboard emptyHistoryMenu() {
+        List<List<AppButton>> rows = new ArrayList<>();
+        List<AppButton> row = new ArrayList<>();
+        row.add(button("\uD83C\uDF10 Перевести текст", "TRANSLATE"));
+        row.add(button("\uD83C\uDFE0 В меню", "MENU"));
         rows.add(row);
         return new AppKeyboard(rows);
     }
