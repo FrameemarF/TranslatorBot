@@ -6,6 +6,7 @@ import org.translatorBot.Model.UserCallback;
 import org.translatorBot.Sender.MessageSender;
 import org.translatorBot.Session.Session;
 import org.translatorBot.Session.SessionStore;
+import org.translatorBot.Ui;
 
 import java.util.Optional;
 
@@ -66,8 +67,45 @@ public class CallbackHandler {
             case "MENU"                     -> flow.showMenu(chatId, s);
             case "HISTORY"                  -> history.show(chatId, accountId);
             case "CLEAR_HISTORY"            -> history.clear(chatId, accountId);
-            default                         -> handleLanguage(chatId, s, data);
+            default -> {
+                if (!handleHistoryPage(chatId, accountId, data)) {
+                    handleLanguage(chatId, s, data);
+                }
+            }
         }
+    }
+
+    /**
+     * Разбирает кнопки навигации по истории вида
+     * {@code HISTORY_PAGE_2_12345}. Старый формат без границы снимка
+     * ({@code HISTORY_PAGE_2}) тоже поддерживается.
+     *
+     * @param chatId    идентификатор чата
+     * @param accountId идентификатор аккаунта пользователя
+     * @param data      данные кнопки
+     * @return {@code true}, если данные относятся к навигации по истории
+     */
+    private boolean handleHistoryPage(long chatId, long accountId, String data) {
+        if (!data.startsWith(Ui.HISTORY_PAGE_PREFIX)) {
+            return false;
+        }
+        try {
+            String value = data.substring(Ui.HISTORY_PAGE_PREFIX.length());
+            int separator = value.indexOf('_');
+            String pagePart = separator >= 0 ? value.substring(0, separator) : value;
+            long anchorId = separator >= 0
+                    ? Long.parseLong(value.substring(separator + 1))
+                    : Long.MAX_VALUE;
+            int page = Integer.parseInt(pagePart);
+            if (page < 0 || anchorId < 0) {
+                flow.showUnknown(chatId);
+                return true;
+            }
+            history.showPage(chatId, accountId, page, anchorId);
+        } catch (NumberFormatException e) {
+            flow.showUnknown(chatId);
+        }
+        return true;
     }
 
     /**

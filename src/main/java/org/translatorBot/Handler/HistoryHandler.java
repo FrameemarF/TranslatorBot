@@ -43,20 +43,65 @@ public class HistoryHandler {
     }
 
     /**
-     * Отправляет пользователю последние переводы. Если история пуста —
-     * показывает подсказку, если база недоступна — сообщение об ошибке.
+     * Отправляет пользователю первую страницу истории переводов. Если история
+     * пуста — показывает подсказку, если база недоступна — сообщение об ошибке.
      *
      * @param chatId    идентификатор чата
      * @param accountId идентификатор аккаунта пользователя
      */
     public void show(long chatId, long accountId) {
+        long anchorId;
         try {
-            List<TranslationRecord> records = history.recent(accountId, HISTORY_LIMIT);
+            anchorId = history.latestId(accountId);
+        } catch (HistoryException e) {
+            log.error("Failed to load history for account {}", accountId, e);
+            sender.send(chatId, ui.historyUnavailable);
+            return;
+        }
+        showPage(chatId, accountId, 0, anchorId);
+    }
+
+    /**
+     * Отправляет страницу истории без фиксированной верхней границы.
+     * Используется для обратной совместимости и в тестах.
+     *
+     * @param chatId    идентификатор чата
+     * @param accountId идентификатор аккаунта пользователя
+     * @param page      номер страницы (0 — самая новая)
+     */
+    public void showPage(long chatId, long accountId, int page) {
+        showPage(chatId, accountId, page, Long.MAX_VALUE);
+    }
+
+    /**
+     * Отправляет пользователю выбранную страницу истории переводов.
+     * <p>
+     * Страницы нумеруются с нуля. Запрашивается на одну запись больше размера
+     * страницы, чтобы определить, есть ли ещё более старые переводы. Все
+     * страницы ограничены одним и тем же {@code anchorId}, поэтому новые
+     * переводы не сдвигают уже открытые страницы.
+     *
+     * @param chatId    идентификатор чата
+     * @param accountId идентификатор аккаунта пользователя
+     * @param page      номер страницы (0 — самая новая)
+     * @param anchorId  максимальный id записи в снимке истории
+     */
+    public void showPage(long chatId, long accountId, int page, long anchorId) {
+        int safePage = Math.max(page, 0);
+        try {
+            List<TranslationRecord> records = history.recent(
+                    accountId, HISTORY_LIMIT + 1,
+                    safePage * HISTORY_LIMIT, anchorId);
+            boolean hasOlder = records.size() > HISTORY_LIMIT;
+            if (hasOlder) {
+                records = records.subList(0, HISTORY_LIMIT);
+            }
             if (records.isEmpty()) {
                 sender.send(chatId, ui.historyEmpty, ui.emptyHistoryMenu());
                 return;
             }
-            sender.send(chatId, format(records), ui.historyMenu());
+            sender.send(chatId, format(records, safePage),
+                    ui.historyMenu(safePage, safePage > 0, hasOlder, anchorId));
         } catch (HistoryException e) {
             log.error("Failed to load history for account {}", accountId, e);
             sender.send(chatId, ui.historyUnavailable);
@@ -83,12 +128,14 @@ public class HistoryHandler {
      * Собирает текст сообщения со списком переводов.
      *
      * @param records переводы от новых к старым
+     * @param page    номер страницы для сквозной нумерации
      * @return готовый текст для отправки
      */
-    private String format(List<TranslationRecord> records) {
+    private String format(List<TranslationRecord> records, int page) {
         StringBuilder text = new StringBuilder(ui.historyHeader);
+        int firstNumber = page * HISTORY_LIMIT + 1;
         for (int i = 0; i < records.size(); i++) {
-            text.append('\n').append(formatRecord(i + 1, records.get(i)));
+            text.append('\n').append(formatRecord(firstNumber + i, records.get(i)));
         }
         return text.toString();
     }

@@ -85,7 +85,7 @@ class CommandHandlerTest {
 
         Assertions.assertEquals(1, history.recentCalls);
         Assertions.assertEquals(chatId, history.lastAccountId);
-        Assertions.assertEquals(HistoryHandler.HISTORY_LIMIT, history.lastLimit);
+        Assertions.assertEquals(HistoryHandler.HISTORY_LIMIT + 1, history.lastLimit);
         Assertions.assertEquals(0, history.lastOffset);
         Assertions.assertEquals(0, flow.showMenuCalls);
     }

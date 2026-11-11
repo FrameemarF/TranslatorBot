@@ -12,6 +12,7 @@ import org.translatorBot.Sender.MessageSender;
 import org.translatorBot.Ui;
 
 import java.time.Instant;
+import java.util.List;
 
 /**
  * Модульные тесты для {@link HistoryHandler}.
@@ -39,6 +40,7 @@ class HistoryHandlerTest {
     void setUp() {
         sender = new RecordingSender();
         history = new FakeHistoryService();
+        history.newestId = 42;
         ui = new Ui();
         handler = new HistoryHandler(sender, history, ui);
     }
@@ -51,8 +53,9 @@ class HistoryHandlerTest {
         Assertions.assertEquals(ui.historyEmpty, sender.lastText);
         Assertions.assertNotNull(sender.lastKeyboard);
         Assertions.assertEquals(accountId, history.lastAccountId);
-        Assertions.assertEquals(HistoryHandler.HISTORY_LIMIT, history.lastLimit);
+        Assertions.assertEquals(HistoryHandler.HISTORY_LIMIT + 1, history.lastLimit);
         Assertions.assertEquals(0, history.lastOffset);
+        Assertions.assertEquals(42, history.lastMaxId);
     }
 
     /** Непустая история содержит записи от новых к старым. */
@@ -71,18 +74,45 @@ class HistoryHandlerTest {
         Assertions.assertNotNull(sender.lastKeyboard);
     }
 
-    /** Показывается не больше одной страницы истории. */
+    /** Первая страница показывает кнопку перехода к более старым записям. */
     @Test
-    void historyShowsOnlyOnePage() {
-        for (int i = 1; i <= 12; i++) {
-            history.records.add(record(Language.RU, Language.EN,
-                    "source-" + i, "translated-" + i));
-        }
+    void firstPageShowsOlderButtonWhenHistoryIsLonger() {
+        addRecords(12);
 
         handler.show(chatId, accountId);
 
+        List<String> callbacks = callbacks(sender.lastKeyboard);
+        Assertions.assertTrue(callbacks.contains("HISTORY_PAGE_1_42"));
+        Assertions.assertFalse(callbacks.contains("HISTORY_PAGE_0_42"));
         Assertions.assertTrue(sender.lastText.contains("10. "));
         Assertions.assertFalse(sender.lastText.contains("11. "));
+    }
+
+    /** Вторая страница продолжает нумерацию и позволяет вернуться к более новым записям. */
+    @Test
+    void nextPageShowsOlderAndNewerButtons() {
+        addRecords(12);
+
+        handler.showPage(chatId, accountId, 1, 42);
+
+        List<String> callbacks = callbacks(sender.lastKeyboard);
+        Assertions.assertTrue(callbacks.contains("HISTORY_PAGE_0_42"));
+        Assertions.assertFalse(callbacks.contains("HISTORY_PAGE_2_42"));
+        Assertions.assertTrue(sender.lastText.contains("11. "));
+        Assertions.assertTrue(sender.lastText.contains("12. "));
+        Assertions.assertEquals(10, history.lastOffset);
+        Assertions.assertEquals(42, history.lastMaxId);
+        Assertions.assertEquals(HistoryHandler.HISTORY_LIMIT + 1, history.lastLimit);
+    }
+
+    /** Если записей хватает ровно на страницу, кнопки «Старее» нет. */
+    @Test
+    void lastFullPageHasNoOlderButton() {
+        addRecords(10);
+
+        handler.show(chatId, accountId);
+
+        Assertions.assertFalse(callbacks(sender.lastKeyboard).contains("HISTORY_PAGE_1_42"));
     }
 
     /** При недоступности хранилища показывается предупреждение. */
@@ -118,6 +148,31 @@ class HistoryHandlerTest {
 
         Assertions.assertEquals(ui.historyUnavailable, sender.lastText);
         Assertions.assertNull(sender.lastKeyboard);
+    }
+
+    /**
+     * Добавляет в историю заданное количество записей.
+     *
+     * @param count количество записей
+     */
+    private void addRecords(int count) {
+        for (int i = 1; i <= count; i++) {
+            history.records.add(record(Language.RU, Language.EN,
+                    "source-" + i, "translated-" + i));
+        }
+    }
+
+    /**
+     * Извлекает callback-данные всех кнопок клавиатуры.
+     *
+     * @param keyboard клавиатура
+     * @return плоский список callback-данных
+     */
+    private List<String> callbacks(AppKeyboard keyboard) {
+        return keyboard.rows().stream()
+                .flatMap(List::stream)
+                .map(button -> button.callbackData())
+                .toList();
     }
 
     /**

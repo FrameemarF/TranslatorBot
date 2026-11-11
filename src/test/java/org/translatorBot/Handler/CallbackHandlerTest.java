@@ -115,8 +115,38 @@ class CallbackHandlerTest {
 
         Assertions.assertEquals(1, history.recentCalls);
         Assertions.assertEquals(chatId, history.lastAccountId);
-        Assertions.assertEquals(HistoryHandler.HISTORY_LIMIT, history.lastLimit);
+        Assertions.assertEquals(HistoryHandler.HISTORY_LIMIT + 1, history.lastLimit);
         Assertions.assertEquals(0, history.lastOffset);
+    }
+
+    /** Кнопка страницы запрашивает историю с нужным смещением и границей снимка. */
+    @Test
+    void historyPageButtonRequestsOffset() {
+        handler.handle(createCallback("HISTORY_PAGE_2_42"));
+
+        Assertions.assertEquals(1, history.recentCalls);
+        Assertions.assertEquals(chatId, history.lastAccountId);
+        Assertions.assertEquals(2 * HistoryHandler.HISTORY_LIMIT, history.lastOffset);
+        Assertions.assertEquals(42, history.lastMaxId);
+        Assertions.assertEquals(HistoryHandler.HISTORY_LIMIT + 1, history.lastLimit);
+    }
+
+    /** Старый формат кнопки без границы снимка тоже поддерживается. */
+    @Test
+    void legacyHistoryPageButtonUsesUnboundedSnapshot() {
+        handler.handle(createCallback("HISTORY_PAGE_2"));
+
+        Assertions.assertEquals(1, history.recentCalls);
+        Assertions.assertEquals(Long.MAX_VALUE, history.lastMaxId);
+    }
+
+    /** Некорректная страница в callback-данных не ломает обработку. */
+    @Test
+    void invalidHistoryPageShowsUnknown() {
+        handler.handle(createCallback("HISTORY_PAGE_bad"));
+
+        Assertions.assertEquals(1, flow.showUnknownCalls);
+        Assertions.assertEquals(0, history.recentCalls);
     }
 
     /** Кнопка «Очистить историю» удаляет историю пользователя. */
