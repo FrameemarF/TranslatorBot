@@ -51,6 +51,30 @@ class UiTest {
         Assertions.assertEquals(List.of("CLEAR_HISTORY", "MENU"), callbackData(ui.historyMenu()));
     }
 
+    /** На средней странице есть переходы и к более новым, и к более старым записям. */
+    @Test
+    void historyMenuHasBothNavigationButtons() {
+        Assertions.assertEquals(
+                List.of("HISTORY_PAGE_0_42", "HISTORY_PAGE_2_42", "CLEAR_HISTORY", "MENU"),
+                callbackData(ui.historyMenu(1, true, true, 42)));
+    }
+
+    /** На первой странице нельзя перейти к более новым записям. */
+    @Test
+    void firstHistoryPageHasOnlyOlderButton() {
+        Assertions.assertEquals(
+                List.of("HISTORY_PAGE_1_42", "CLEAR_HISTORY", "MENU"),
+                callbackData(ui.historyMenu(0, false, true, 42)));
+    }
+
+    /** На последней странице нельзя перейти к более старым записям. */
+    @Test
+    void lastHistoryPageHasOnlyNewerButton() {
+        Assertions.assertEquals(
+                List.of("HISTORY_PAGE_1_42", "CLEAR_HISTORY", "MENU"),
+                callbackData(ui.historyMenu(2, true, false, 42)));
+    }
+
     /** Пустая история предлагает перевод и возврат в меню. */
     @Test
     void emptyHistoryMenuHasTranslateAndBack() {

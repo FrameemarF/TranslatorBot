@@ -138,13 +138,43 @@ public class Ui {
         return new AppKeyboard(rows);
     }
 
+    /** Префикс callback-данных для перехода на страницу истории. */
+    public static final String HISTORY_PAGE_PREFIX = "HISTORY_PAGE_";
+
     /**
-     * Собирает клавиатуру истории переводов.
+     * Собирает клавиатуру истории переводов без навигации.
      *
      * @return клавиатура с кнопками «Очистить историю» и «В меню»
      */
     public AppKeyboard historyMenu() {
+        return historyMenu(0, false, false, Long.MAX_VALUE);
+    }
+
+    /**
+     * Собирает клавиатуру истории переводов с кнопками навигации по страницам.
+     *
+     * @param page     номер текущей страницы (0 — самая новая)
+     * @param hasNewer есть ли более новые переводы
+     * @param hasOlder есть ли более старые переводы
+     * @param anchorId верхняя граница снимка истории
+     * @return клавиатура с навигацией, «Очистить историю» и «В меню»
+     */
+    public AppKeyboard historyMenu(int page, boolean hasNewer, boolean hasOlder,
+                                   long anchorId) {
         List<List<AppButton>> rows = new ArrayList<>();
+
+        if (hasNewer || hasOlder) {
+            List<AppButton> navigationRow = new ArrayList<>();
+            if (hasNewer) {
+                navigationRow.add(button("⬅️ Новее",
+                        HISTORY_PAGE_PREFIX + (page - 1) + "_" + anchorId));
+            }
+            if (hasOlder) {
+                navigationRow.add(button("Старее ➡️",
+                        HISTORY_PAGE_PREFIX + (page + 1) + "_" + anchorId));
+            }
+            rows.add(navigationRow);
+        }
 
         List<AppButton> firstRow = new ArrayList<>();
         firstRow.add(button("🗑 Очистить историю", "CLEAR_HISTORY"));
