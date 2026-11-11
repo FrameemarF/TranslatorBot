@@ -16,10 +16,14 @@ import org.translatorBot.Handler.CallbackHandler;
 import org.translatorBot.Handler.CommandHandler;
 import org.translatorBot.Handler.DialogFlow;
 import org.translatorBot.Handler.DocumentHandler;
+import org.translatorBot.Handler.HistoryHandler;
 import org.translatorBot.Handler.MaterialHandler;
 import org.translatorBot.Handler.Router;
 import org.translatorBot.Handler.TextHandler;
 import org.translatorBot.Handler.VoiceHandler;
+import org.translatorBot.History.HistoryService;
+import org.translatorBot.History.JdbcHistoryService;
+import org.translatorBot.History.Platform;
 import org.translatorBot.Sender.MessageSender;
 import org.translatorBot.Sender.SenderTG;
 import org.translatorBot.Service.Speech.FallbackSpeechService;
@@ -83,7 +87,6 @@ public class BotApplication {
 
             log.info("TranslateBot started (LibreTranslate URL: {})",
                     config.getLibreTranslateUrl());
-            System.out.println("Translation bot is working");
 
             shutdownLatch.await();
         } catch (InterruptedException e) {
@@ -111,7 +114,8 @@ public class BotApplication {
         String token = config.getBotToken();
         TelegramMapper mapper = new TelegramMapper();
         MessageSender sender = new SenderTG(new OkHttpTelegramClient(token), mapper);
-        Router router = buildRouter(config, sender);
+        HistoryService history = historyService(config, Platform.TELEGRAM);
+        Router router = buildRouter(config, sender, history);
 
         TelegramBotsLongPollingApplication app = new TelegramBotsLongPollingApplication();
         app.registerBot(token, new TelegramBotAdapter(router, mapper));
@@ -143,7 +147,8 @@ public class BotApplication {
 
         DiscordMapper mapper = new DiscordMapper();
         MessageSender sender = new SenderDiscord(jda);
-        Router router = buildRouter(config, sender);
+        HistoryService history = historyService(config, Platform.DISCORD);
+        Router router = buildRouter(config, sender, history);
         jda.addEventListener(new DiscordBotListener(router, mapper));
 
         registerDiscordCommands(jda);
@@ -160,6 +165,8 @@ public class BotApplication {
         jda.updateCommands().addCommands(
                 Commands.slash("start", "Начать работу и показать меню"),
                 Commands.slash("translate", "Начать перевод"),
+                Commands.slash("history", "Показать последние переводы"),
+                Commands.slash("clear_history", "Удалить историю переводов"),
                 Commands.slash("help", "Список команд"),
                 Commands.slash("back", "Вернуться на предыдущий шаг")
         ).queue(null, error ->
@@ -194,16 +201,33 @@ public class BotApplication {
     }
 
     /**
+     * Создаёт хранилище истории для указанной платформы.
+     *
+     * @param config   конфигурация бота
+     * @param platform платформа
+     * @return сервис истории
+     */
+    private HistoryService historyService(BotConfig config, Platform platform) {
+        return new JdbcHistoryService(
+                config.getDatabaseUrl(),
+                config.getDatabaseUser(),
+                config.getDatabasePassword(),
+                platform);
+    }
+
+    /**
      * Создаёт и настраивает {@link Router} со всеми зависимостями.
      * <p>
      * Распознавание речи: сначала облачный Groq, при его недоступности
      * (лимиты, сеть, нет ключа) — автоматически локальный Whisper.
      *
-     * @param config конфигурация бота
-     * @param sender отправитель сообщений платформы
+     * @param config  конфигурация бота
+     * @param sender  отправитель сообщений платформы
+     * @param history хранилище истории платформы
      * @return готовый маршрутизатор для обработки обновлений
      */
-    private Router buildRouter(BotConfig config, MessageSender sender) {
+    private Router buildRouter(BotConfig config, MessageSender sender,
+                               HistoryService history) {
         SessionStore sessions = new InMemorySessionStore();
         TranslationService translator = new LibreTranslateService(
                 config.getLibreTranslateUrl());
@@ -211,13 +235,14 @@ public class BotApplication {
 
         Ui ui = new Ui();
         DialogFlow flow = new DialogFlow(sender, ui);
+        HistoryHandler historyHandler = new HistoryHandler(sender, history, ui);
         List<MaterialHandler> handlers = List.of(
                 new TextHandler(sender, translator, ui),
                 new VoiceHandler(sender, speech, translator, ui),
                 new DocumentHandler(sender, translator, ui));
 
-        return new Router(sessions, new CommandHandler(flow),
-                new CallbackHandler(sender, sessions, flow), flow, handlers);
+        return new Router(sessions, new CommandHandler(flow, historyHandler),
+                new CallbackHandler(sender, sessions, flow, historyHandler), flow, handlers);
     }
 
     /**

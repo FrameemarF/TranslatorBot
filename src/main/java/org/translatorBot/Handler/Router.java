@@ -77,7 +77,7 @@ public class Router {
         Session session = sessions.get(msg.accountId());
 
         if (msg.type() == MessageType.TEXT && msg.text().trim().startsWith("/")) {
-            commands.handle(msg.chatId(), msg.text(), session);
+            commands.handle(msg.chatId(), msg.accountId(), msg.text(), session);
         } else if (session.getState() == Session.State.WAITING_TEXT) {
             handleMaterial(msg, session);
         } else {

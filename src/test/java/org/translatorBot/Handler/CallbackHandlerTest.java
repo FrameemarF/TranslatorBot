@@ -3,6 +3,7 @@ package org.translatorBot.Handler;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.translatorBot.History.FakeHistoryService;
 import org.translatorBot.Language;
 import org.translatorBot.Model.AppKeyboard;
 import org.translatorBot.Model.UserCallback;
@@ -10,6 +11,7 @@ import org.translatorBot.Sender.MessageSender;
 import org.translatorBot.Session.InMemorySessionStore;
 import org.translatorBot.Session.Session;
 import org.translatorBot.Session.SessionStore;
+import org.translatorBot.Ui;
 
 /**
  * Модульные тесты для {@link CallbackHandler}.
@@ -23,6 +25,7 @@ class CallbackHandlerTest {
     private SessionStore sessions;
     private Session session;
     private FakeDialogFlow flow;
+    private FakeHistoryService history;
     private CallbackHandler handler;
 
     @BeforeEach
@@ -31,7 +34,9 @@ class CallbackHandlerTest {
         sessions = new InMemorySessionStore();
         session = sessions.get(chatId);
         flow = new FakeDialogFlow();
-        handler = new CallbackHandler(sender, sessions, flow);
+        history = new FakeHistoryService();
+        HistoryHandler historyHandler = new HistoryHandler(sender, history, new Ui());
+        handler = new CallbackHandler(sender, sessions, flow, historyHandler);
     }
 
     private UserCallback createCallback(String data) {
@@ -101,6 +106,26 @@ class CallbackHandlerTest {
     void unknownPrefixCallsShowUnknown() {
         handler.handle(createCallback("UNKNOWN_DE"));
         Assertions.assertEquals(1, flow.showUnknownCalls);
+    }
+
+    /** Кнопка «История» запрашивает последние переводы пользователя. */
+    @Test
+    void historyButtonShowsHistory() {
+        handler.handle(createCallback("HISTORY"));
+
+        Assertions.assertEquals(1, history.recentCalls);
+        Assertions.assertEquals(chatId, history.lastAccountId);
+        Assertions.assertEquals(HistoryHandler.HISTORY_LIMIT, history.lastLimit);
+        Assertions.assertEquals(0, history.lastOffset);
+    }
+
+    /** Кнопка «Очистить историю» удаляет историю пользователя. */
+    @Test
+    void clearHistoryButtonClearsHistory() {
+        handler.handle(createCallback("CLEAR_HISTORY"));
+
+        Assertions.assertEquals(1, history.clearCalls);
+        Assertions.assertEquals(chatId, history.lastAccountId);
     }
 
     private static class FakeSender implements MessageSender {
