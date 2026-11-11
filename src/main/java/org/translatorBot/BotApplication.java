@@ -1,10 +1,17 @@
 package org.translatorBot;
 
+import net.dv8tion.jda.api.JDA;
+import net.dv8tion.jda.api.JDABuilder;
+import net.dv8tion.jda.api.interactions.commands.build.Commands;
+import net.dv8tion.jda.api.requests.GatewayIntent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.longpolling.TelegramBotsLongPollingApplication;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
+import org.translatorBot.Discord.DiscordBotListener;
+import org.translatorBot.Discord.DiscordMapper;
+import org.translatorBot.Discord.SenderDiscord;
 import org.translatorBot.Handler.CallbackHandler;
 import org.translatorBot.Handler.CommandHandler;
 import org.translatorBot.Handler.DialogFlow;
@@ -30,10 +37,10 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
 /**
- * Запускает и управляет жизненным циклом бота.
+ * Запускает и управляет жизненным циклом ботов Telegram и Discord.
  * <p>
- * Инициализирует конфигурацию, общий сценарий перевода и клиента платформы,
- * регистрирует бота и ожидает сигнала завершения.
+ * Инициализирует конфигурацию, общий сценарий перевода и клиентов платформ,
+ * регистрирует ботов и ожидает сигнала завершения.
  */
 public class BotApplication {
 
@@ -41,10 +48,10 @@ public class BotApplication {
     private final Logger log = LoggerFactory.getLogger(getClass());
 
     /**
-     * Запускает бота. Метод не выбрасывает исключения наружу: при фатальной
+     * Запускает ботов. Метод не выбрасывает исключения наружу: при фатальной
      * ошибке она логируется, а возвращается {@code false}.
      *
-     * @return {@code true}, если бот завершился штатно; {@code false} — при ошибке
+     * @return {@code true}, если боты завершились штатно; {@code false} — при ошибке
      */
     public boolean run() {
         try {
@@ -57,7 +64,7 @@ public class BotApplication {
     }
 
     /**
-     * Инициализирует зависимости, регистрирует бота и блокируется до получения
+     * Инициализирует зависимости, регистрирует ботов и блокируется до получения
      * сигнала завершения (shutdown hook). Ошибки запуска оборачиваются
      * в {@link IllegalStateException} и обрабатываются в {@link #run()}.
      */
@@ -69,8 +76,10 @@ public class BotApplication {
                 new Thread(shutdownLatch::countDown, "shutdown-hook"));
 
         TelegramBotsLongPollingApplication telegram = null;
+        JDA discord = null;
         try {
             telegram = startTelegram(config);
+            discord = startDiscord(config);
 
             log.info("TranslateBot started (LibreTranslate URL: {})",
                     config.getLibreTranslateUrl());
@@ -83,6 +92,7 @@ public class BotApplication {
         } catch (Exception e) {
             throw new IllegalStateException("Failed to start bot", e);
         } finally {
+            stopDiscord(discord);
             stopTelegram(telegram);
         }
 
@@ -106,6 +116,65 @@ public class BotApplication {
         TelegramBotsLongPollingApplication app = new TelegramBotsLongPollingApplication();
         app.registerBot(token, new TelegramBotAdapter(router, mapper));
         return app;
+    }
+
+    /**
+     * Запускает Discord-бота, если задан токен. Без токена Discord просто
+     * пропускается, а бот продолжает работать в Telegram.
+     *
+     * @param config конфигурация бота
+     * @return клиент Discord или {@code null}, если Discord не настроен
+     * @throws InterruptedException если ожидание готовности было прервано
+     */
+    private JDA startDiscord(BotConfig config) throws InterruptedException {
+        String token = config.getDiscordToken();
+        if (token == null) {
+            log.warn("DISCORD_TOKEN is not set: Discord platform is disabled");
+            return null;
+        }
+
+        JDA jda = JDABuilder.createDefault(token,
+                        GatewayIntent.MESSAGE_CONTENT,
+                        GatewayIntent.GUILD_MESSAGES,
+                        GatewayIntent.DIRECT_MESSAGES)
+                .setActivity(net.dv8tion.jda.api.entities.Activity.playing("перевод"))
+                .build();
+        jda.awaitReady();
+
+        DiscordMapper mapper = new DiscordMapper();
+        MessageSender sender = new SenderDiscord(jda);
+        Router router = buildRouter(config, sender);
+        jda.addEventListener(new DiscordBotListener(router, mapper));
+
+        registerDiscordCommands(jda);
+        log.info("Discord bot started as {}", jda.getSelfUser().getName());
+        return jda;
+    }
+
+    /**
+     * Регистрирует slash-команды Discord.
+     *
+     * @param jda клиент Discord
+     */
+    private void registerDiscordCommands(JDA jda) {
+        jda.updateCommands().addCommands(
+                Commands.slash("start", "Начать работу и показать меню"),
+                Commands.slash("translate", "Начать перевод"),
+                Commands.slash("help", "Список команд"),
+                Commands.slash("back", "Вернуться на предыдущий шаг")
+        ).queue(null, error ->
+                log.error("Failed to register Discord slash commands", error));
+    }
+
+    /**
+     * Останавливает Discord-клиент, если он был запущен.
+     *
+     * @param discord клиент Discord или {@code null}
+     */
+    private void stopDiscord(JDA discord) {
+        if (discord != null) {
+            discord.shutdownNow();
+        }
     }
 
     /**
