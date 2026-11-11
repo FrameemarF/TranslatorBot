@@ -2,6 +2,9 @@ package org.translatorBot.Handler;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.translatorBot.History.HistoryException;
+import org.translatorBot.History.HistoryService;
+import org.translatorBot.History.TranslationRecord;
 import org.translatorBot.Model.MessageType;
 import org.translatorBot.Model.UserMessage;
 import org.translatorBot.Sender.FileDownloadException;
@@ -15,13 +18,15 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 
 /**
  * Перевод файла .txt: в ответ приходит файл name_translated.txt.
  * <p>
  * Проверяет расширение и размер файла, скачивает его во временный файл,
  * читает текст, переводит и отправляет результат обратно пользователю
- * в виде документа. Временные файлы удаляются после обработки.
+ * в виде документа. Временные файлы удаляются после обработки,
+ * а успешный перевод сохраняется в историю.
  */
 public class DocumentHandler implements MaterialHandler {
     /** Максимально допустимый размер загружаемого файла в байтах (5 МБ). */
@@ -36,6 +41,8 @@ public class DocumentHandler implements MaterialHandler {
     private final TranslationService translator;
     /** Источник текстов и клавиатур. */
     private final Ui ui;
+    /** Хранилище истории переводов. */
+    private final HistoryService history;
 
     /**
      * Создаёт обработчик текстовых файлов.
@@ -43,11 +50,14 @@ public class DocumentHandler implements MaterialHandler {
      * @param sender     отправитель сообщений и загрузчик файлов
      * @param translator сервис перевода текста
      * @param ui         источник текстов и клавиатур
+     * @param history    хранилище истории переводов
      */
-    public DocumentHandler(MessageSender sender, TranslationService translator, Ui ui) {
+    public DocumentHandler(MessageSender sender, TranslationService translator, Ui ui,
+                           HistoryService history) {
         this.sender = sender;
         this.translator = translator;
         this.ui = ui;
+        this.history = history;
     }
 
     /** {@inheritDoc} */
@@ -107,8 +117,12 @@ public class DocumentHandler implements MaterialHandler {
             translated = Files.createTempFile("translatorbot-", ".txt");
             Files.writeString(translated, result, StandardCharsets.UTF_8);
 
+            boolean saved = saveHistory(message, session, text, result);
+            String caption = saved
+                    ? ui.fileReady
+                    : ui.fileReady + "\n" + ui.historySaveFailed;
             sender.sendDocument(chatId, base + "_translated.txt", translated,
-                    ui.fileReady, ui.afterTranslation());
+                    caption, ui.afterTranslation());
         } catch (FileDownloadException e) {
             log.error("File download failed for chat {}", chatId, e);
             sender.send(chatId, ui.fileReadErr);
@@ -121,6 +135,36 @@ public class DocumentHandler implements MaterialHandler {
         } finally {
             deleteQuietly(downloaded);
             deleteQuietly(translated);
+        }
+    }
+
+    /**
+     * Сохраняет успешный перевод в историю, не прерывая ответ пользователю
+     * при ошибке хранилища.
+     *
+     * @param message    входящее сообщение
+     * @param session    сессия с выбранными языками
+     * @param sourceText исходный текст файла
+     * @param translated переведённый текст
+     * @return {@code true}, если запись сохранена
+     */
+    private boolean saveHistory(UserMessage message, Session session,
+                                String sourceText, String translated) {
+        TranslationRecord record = new TranslationRecord(
+                MessageType.DOCUMENT,
+                session.getSource(),
+                session.getTarget(),
+                sourceText,
+                translated,
+                message.fileName(),
+                Instant.now());
+        try {
+            history.save(message.accountId(), record);
+            return true;
+        } catch (HistoryException e) {
+            log.error("Failed to save translation history for account {}",
+                    message.accountId(), e);
+            return false;
         }
     }
 

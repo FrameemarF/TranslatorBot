@@ -3,8 +3,11 @@ package org.translatorBot.Handler;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.translatorBot.History.FakeHistoryService;
+import org.translatorBot.History.TranslationRecord;
 import org.translatorBot.Language;
 import org.translatorBot.Model.AppKeyboard;
+import org.translatorBot.Model.MessageType;
 import org.translatorBot.Model.UserMessage;
 import org.translatorBot.Sender.MessageSender;
 import org.translatorBot.Service.Translation.TranslationException;
@@ -21,6 +24,7 @@ class TextHandlerTest {
 
     private FakeSender sender;
     private FakeTranslator translator;
+    private FakeHistoryService history;
     private Ui ui;
     private TextHandler handler;
     private Session session;
@@ -29,8 +33,9 @@ class TextHandlerTest {
     void setUp() {
         sender = new FakeSender();
         translator = new FakeTranslator();
+        history = new FakeHistoryService();
         ui = new Ui();
-        handler = new TextHandler(sender, translator, ui);
+        handler = new TextHandler(sender, translator, ui, history);
         session = new Session();
         session.setSource(Language.RU);
         session.setTarget(Language.EN);
@@ -68,6 +73,38 @@ class TextHandlerTest {
         Assertions.assertEquals(ui.translation("Hello"), sender.lastText);
         Assertions.assertNotNull(sender.lastKeyboard);
         Assertions.assertEquals(Session.State.IDLE, session.getState());
+        Assertions.assertEquals(1, history.saveCalls);
+        Assertions.assertEquals(chatId, history.lastAccountId);
+        TranslationRecord saved = history.lastSaved;
+        Assertions.assertEquals(MessageType.TEXT, saved.materialType());
+        Assertions.assertEquals(Language.RU, saved.source());
+        Assertions.assertEquals(Language.EN, saved.target());
+        Assertions.assertEquals("Привет", saved.sourceText());
+        Assertions.assertEquals("Hello", saved.translatedText());
+    }
+
+    /** Если история недоступна, перевод отправляется с предупреждением. */
+    @Test
+    void shouldWarnWhenHistoryIsUnavailable() {
+        translator.detectedLanguage = Language.RU;
+        translator.result = "Hello";
+        history.fail = true;
+
+        handler.handle(createMessage("Привет"), session);
+
+        Assertions.assertTrue(sender.lastText.contains(ui.historySaveFailed));
+        Assertions.assertEquals(Session.State.IDLE, session.getState());
+    }
+
+    /** При ошибке перевода история не сохраняется. */
+    @Test
+    void shouldNotSaveHistoryWhenTranslationFails() {
+        translator.shouldThrow = true;
+        translator.detectedLanguage = Language.RU;
+
+        handler.handle(createMessage("Привет"), session);
+
+        Assertions.assertEquals(0, history.saveCalls);
     }
 
     @Test

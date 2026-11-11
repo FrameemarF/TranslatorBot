@@ -3,6 +3,9 @@ package org.translatorBot.Handler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.translatorBot.Language;
+import org.translatorBot.History.HistoryException;
+import org.translatorBot.History.HistoryService;
+import org.translatorBot.History.TranslationRecord;
 import org.translatorBot.Model.MessageType;
 import org.translatorBot.Model.UserMessage;
 import org.translatorBot.Sender.FileDownloadException;
@@ -18,6 +21,7 @@ import org.translatorBot.Ui;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.Optional;
 
 /**
@@ -25,7 +29,7 @@ import java.util.Optional;
  *
  * <p>Выполняет цепочку «скачать → распознать → перевести → ответить текстом».
  * Слишком длинные голосовые сообщения (более {@value #MAX_DURATION_SECONDS} секунд)
- * отклоняются без обработки.
+ * отклоняются без обработки. Успешный перевод сохраняется в историю.
  *
  * @see MaterialHandler
  */
@@ -44,6 +48,8 @@ public class VoiceHandler implements MaterialHandler {
     private final TranslationService translator;
     /** Поставщик текстов интерфейса. */
     private final Ui ui;
+    /** Хранилище истории переводов. */
+    private final HistoryService history;
 
     /**
      * Создаёт обработчик голосовых сообщений.
@@ -52,13 +58,15 @@ public class VoiceHandler implements MaterialHandler {
      * @param speech     сервис распознавания речи
      * @param translator сервис перевода текста
      * @param ui         поставщик текстов интерфейса
+     * @param history    хранилище истории переводов
      */
     public VoiceHandler(MessageSender sender, SpeechRecognitionService speech,
-                        TranslationService translator, Ui ui) {
+                        TranslationService translator, Ui ui, HistoryService history) {
         this.sender = sender;
         this.speech = speech;
         this.translator = translator;
         this.ui = ui;
+        this.history = history;
     }
 
     /** {@inheritDoc} */
@@ -110,8 +118,12 @@ public class VoiceHandler implements MaterialHandler {
 
             String result = translator.translate(recognized.get(), session.getSource(), session.getTarget());
 
-            sender.send(chatId, ui.recognized(recognized.get()) + "\n" + ui.translation(result),
-                    ui.afterTranslation());
+            boolean saved = saveHistory(message, session, recognized.get(), result);
+            String reply = ui.recognized(recognized.get()) + "\n" + ui.translation(result);
+            if (!saved) {
+                reply = reply + "\n" + ui.historySaveFailed;
+            }
+            sender.send(chatId, reply, ui.afterTranslation());
         } catch (TranslationException e) {
             log.error("Translation failed for chat {}", chatId, e);
             sender.send(chatId, ui.translateErr);
@@ -153,6 +165,36 @@ public class VoiceHandler implements MaterialHandler {
             return Optional.empty();
         } finally {
             deleteQuietly(audio);
+        }
+    }
+
+    /**
+     * Сохраняет успешный перевод в историю, не прерывая ответ пользователю
+     * при ошибке хранилища.
+     *
+     * @param message    входящее сообщение
+     * @param session    сессия с выбранными языками
+     * @param sourceText распознанный текст
+     * @param translated переведённый текст
+     * @return {@code true}, если запись сохранена
+     */
+    private boolean saveHistory(UserMessage message, Session session,
+                                String sourceText, String translated) {
+        TranslationRecord record = new TranslationRecord(
+                MessageType.VOICE,
+                session.getSource(),
+                session.getTarget(),
+                sourceText,
+                translated,
+                null,
+                Instant.now());
+        try {
+            history.save(message.accountId(), record);
+            return true;
+        } catch (HistoryException e) {
+            log.error("Failed to save translation history for account {}",
+                    message.accountId(), e);
+            return false;
         }
     }
 

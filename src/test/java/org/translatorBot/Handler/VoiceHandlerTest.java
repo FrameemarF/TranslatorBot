@@ -4,6 +4,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.translatorBot.History.FakeHistoryService;
+import org.translatorBot.History.TranslationRecord;
 import org.translatorBot.Language;
 import org.translatorBot.Model.AppKeyboard;
 import org.translatorBot.Model.MessageType;
@@ -35,6 +37,7 @@ class VoiceHandlerTest {
     private RecordingSender sender;
     private FakeSpeech speech;
     private FakeTranslator translator;
+    private FakeHistoryService history;
     private Ui ui;
     private VoiceHandler handler;
     private Session session;
@@ -44,8 +47,9 @@ class VoiceHandlerTest {
         sender = new RecordingSender(tempDir);
         speech = new FakeSpeech();
         translator = new FakeTranslator();
+        history = new FakeHistoryService();
         ui = new Ui();
-        handler = new VoiceHandler(sender, speech, translator, ui);
+        handler = new VoiceHandler(sender, speech, translator, ui, history);
         session = new Session();
         session.setState(Session.State.WAITING_TEXT);
         session.setSource(Language.RU);
@@ -67,6 +71,22 @@ class VoiceHandlerTest {
         handler.handle(voiceMessage(10), session);
         Assertions.assertEquals(ui.recognized("Привет, мир") + "\n" + ui.translation("Hello, world"), sender.lastText);
         Assertions.assertEquals(Session.State.WAITING_TEXT, session.getState());
+        Assertions.assertEquals(1, history.saveCalls);
+        TranslationRecord saved = history.lastSaved;
+        Assertions.assertEquals(MessageType.VOICE, saved.materialType());
+        Assertions.assertEquals("Привет, мир", saved.sourceText());
+        Assertions.assertEquals("Hello, world", saved.translatedText());
+    }
+
+    /** Если история недоступна, перевод отправляется с предупреждением. */
+    @Test
+    void warnsWhenHistoryIsUnavailable() {
+        translator.detectedLanguage = Language.RU;
+        history.fail = true;
+
+        handler.handle(voiceMessage(10), session);
+
+        Assertions.assertTrue(sender.lastText.contains(ui.historySaveFailed));
     }
 
     @Test
