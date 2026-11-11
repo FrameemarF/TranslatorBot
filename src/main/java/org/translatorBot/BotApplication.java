@@ -87,7 +87,6 @@ public class BotApplication {
 
             log.info("TranslateBot started (LibreTranslate URL: {})",
                     config.getLibreTranslateUrl());
-            System.out.println("Translation bot is working");
 
             shutdownLatch.await();
         } catch (InterruptedException e) {
