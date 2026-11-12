@@ -4,6 +4,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.translatorBot.History.FakeHistoryService;
+import org.translatorBot.History.TranslationRecord;
 import org.translatorBot.Language;
 import org.translatorBot.Model.AppKeyboard;
 import org.translatorBot.Model.MessageType;
@@ -33,6 +35,7 @@ class DocumentHandlerTest {
 
     private FakeSender sender;
     private FakeTranslator translator;
+    private FakeHistoryService history;
     private Ui ui;
     private DocumentHandler handler;
     private Session session;
@@ -41,8 +44,9 @@ class DocumentHandlerTest {
     void setUp() {
         sender = new FakeSender(tempDir);
         translator = new FakeTranslator();
+        history = new FakeHistoryService();
         ui = new Ui();
-        handler = new DocumentHandler(sender, translator, ui);
+        handler = new DocumentHandler(sender, translator, ui, history);
         session = new Session();
         session.setSource(Language.RU);
         session.setTarget(Language.EN);
@@ -124,6 +128,26 @@ class DocumentHandlerTest {
         Assertions.assertEquals("test_translated.txt", sender.lastDocumentFileName);
         Assertions.assertEquals("Hello world", sender.lastDocumentContent);
         Assertions.assertEquals(Session.State.WAITING_TEXT, session.getState());
+        Assertions.assertEquals(1, history.saveCalls);
+        TranslationRecord saved = history.lastSaved;
+        Assertions.assertEquals(MessageType.DOCUMENT, saved.materialType());
+        Assertions.assertEquals("test.txt", saved.materialName());
+        Assertions.assertEquals(fileContent, saved.sourceText());
+        Assertions.assertEquals("Hello world", saved.translatedText());
+    }
+
+    /** Если история недоступна, файл отправляется с предупреждением. */
+    @Test
+    void shouldWarnWhenHistoryIsUnavailable() {
+        sender.downloadedBytes = "Привет".getBytes(StandardCharsets.UTF_8);
+        translator.result = "Hello";
+        history.fail = true;
+        UserMessage msg = createDocumentMessage("test.txt", 100L);
+
+        handler.handle(msg, session);
+
+        Assertions.assertEquals(1, sender.sendDocumentCalls);
+        Assertions.assertTrue(sender.lastDocumentCaption.contains(ui.historySaveFailed));
     }
 
     @Test

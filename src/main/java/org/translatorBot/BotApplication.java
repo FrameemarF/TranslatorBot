@@ -237,9 +237,9 @@ public class BotApplication {
         DialogFlow flow = new DialogFlow(sender, ui);
         HistoryHandler historyHandler = new HistoryHandler(sender, history, ui);
         List<MaterialHandler> handlers = List.of(
-                new TextHandler(sender, translator, ui),
-                new VoiceHandler(sender, speech, translator, ui),
-                new DocumentHandler(sender, translator, ui));
+                new TextHandler(sender, translator, ui, history),
+                new VoiceHandler(sender, speech, translator, ui, history),
+                new DocumentHandler(sender, translator, ui, history));
 
         return new Router(sessions, new CommandHandler(flow, historyHandler),
                 new CallbackHandler(sender, sessions, flow, historyHandler), flow, handlers);
