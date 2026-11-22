@@ -68,39 +68,46 @@ public class GroqSpeechService implements SpeechRecognitionService {
      * @param fileName имя файла, передаваемое в multipart-запросе
      * @param language ожидаемый язык речи
      * @return распознанный текст (непустой, обрезанный по краям)
-     * @throws SpeechUnavailableException если ключ не задан или сервис вернул ошибку
+     * @throws SpeechUnavailableException если ключ не задан, сервис вернул ошибку
+     *                                    или запрос не удалось выполнить
      * @throws SpeechUnrecognizedException если в аудио нет речи либо результат пуст
-     * @throws Exception при прочих ошибках ввода-вывода или разбора ответа
      */
     @Override
-    public String recognize(byte[] audio, String fileName, Language language) throws Exception {
+    public String recognize(byte[] audio, String fileName, Language language) {
         if (apiKey == null || apiKey.isBlank()) {
             throw new SpeechUnavailableException("Groq API key is not configured");
         }
 
-        String boundary = "----TranslatorBot" + UUID.randomUUID();
-        HttpRequest request = HttpRequest.newBuilder(endpoint)
-                .timeout(Duration.ofSeconds(30))
-                .header("Authorization", "Bearer " + apiKey)
-                .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-                .POST(HttpRequest.BodyPublishers.ofByteArray(
-                        multipart(boundary, audio, fileName, language)))
-                .build();
+        try {
+            String boundary = "----TranslatorBot" + UUID.randomUUID();
+            HttpRequest request = HttpRequest.newBuilder(endpoint)
+                    .timeout(Duration.ofSeconds(30))
+                    .header("Authorization", "Bearer " + apiKey)
+                    .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                    .POST(HttpRequest.BodyPublishers.ofByteArray(
+                            multipart(boundary, audio, fileName, language)))
+                    .build();
 
-        HttpResponse<String> response = http.send(request,
-                HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            HttpResponse<String> response = http.send(request,
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
 
-        if (response.statusCode() != 200) {
-            throw new SpeechUnavailableException(
-                    "Groq HTTP " + response.statusCode() + ": " + response.body());
+            if (response.statusCode() != 200) {
+                throw new SpeechUnavailableException(
+                        "Groq HTTP " + response.statusCode() + ": " + response.body());
+            }
+
+            JsonNode root = json.readTree(response.body());
+            String text = root.path("text").asText("").trim();
+            if (text.isEmpty() || isSilence(root.path("segments"))) {
+                throw new SpeechUnrecognizedException();
+            }
+            return text;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new SpeechUnavailableException("Groq request interrupted", e);
+        } catch (IOException e) {
+            throw new SpeechUnavailableException("Groq request failed: " + e.getMessage(), e);
         }
-
-        JsonNode root = json.readTree(response.body());
-        String text = root.path("text").asText("").trim();
-        if (text.isEmpty() || isSilence(root.path("segments"))) {
-            throw new SpeechUnrecognizedException();
-        }
-        return text;
     }
 
     /** Whisper на тишине склонен «придумывать» текст, поэтому смотрим на no_speech_prob. */

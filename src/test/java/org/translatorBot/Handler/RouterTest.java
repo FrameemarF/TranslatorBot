@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.translatorBot.Language;
+import org.translatorBot.Model.MessageType;
 import org.translatorBot.Model.UserCallback;
 import org.translatorBot.Model.UserMessage;
 import org.translatorBot.Session.InMemorySessionStore;
@@ -56,6 +57,15 @@ class RouterTest {
         Assertions.assertEquals(1, fakeCommands.handleCalls);
         Assertions.assertEquals(0, fakeCallbacks.handleCalls);
         Assertions.assertEquals(0, fakeMaterialHandler.handleCalls);
+    }
+
+    /** Проверяет, что в команду передаётся идентификатор аккаунта пользователя. */
+    @Test
+    void commandReceivesAccountId() {
+        UserMessage msg = new UserMessage(chatId, 777L, "/history");
+        router.handleMessage(msg);
+
+        Assertions.assertEquals(777L, fakeCommands.lastAccountId);
     }
 
     /** Проверяет, что callback-запрос уходит в {@link CallbackHandler}. */
@@ -111,20 +121,28 @@ class RouterTest {
         Assertions.assertEquals(0, fakeMaterialHandler.handleCalls);
     }
 
-    /** Проверяет, что если обработчик не найден, вызывается {@link DialogFlow#showUnsupportedMaterial}. */
+    /** Проверяет, что если обработчик для типа не найден, вызывается {@link DialogFlow#showUnsupportedMaterial}. */
     @Test
     void unsupportedMaterialGoesToFlow() {
         Session session = sessions.get(chatId);
         session.setState(Session.State.WAITING_TEXT);
         session.setSource(Language.RU);
         session.setTarget(Language.EN);
-        fakeMaterialHandler.supportsReturn = false;
+        // Зарегистрирован только обработчик TEXT, а пришёл DOCUMENT
 
-        UserMessage msg = new UserMessage(chatId, "Привет");
+        UserMessage msg = new UserMessage(chatId, "doc-1", "test.txt", 100L);
         router.handleMessage(msg);
 
         Assertions.assertEquals(1, fakeFlow.showUnsupportedMaterialCalls);
         Assertions.assertEquals(0, fakeMaterialHandler.handleCalls);
+    }
+
+    /** Проверяет, что два обработчика на один тип — ошибка конфигурации. */
+    @Test
+    void duplicateHandlerForSameTypeIsRejected() {
+        Assertions.assertThrows(IllegalArgumentException.class,
+                () -> new Router(sessions, fakeCommands, fakeCallbacks, fakeFlow,
+                        List.of(fakeMaterialHandler, new FakeMaterialHandler())));
     }
 
     // ---------- Заглушки обработчиков ----------
@@ -132,14 +150,16 @@ class RouterTest {
     /** Заглушка {@link CommandHandler}, считающая вызовы. */
     private static class FakeCommandHandler extends CommandHandler {
         int handleCalls;
+        long lastAccountId;
 
         FakeCommandHandler() {
-            super(null);
+            super(null, null);
         }
 
         @Override
-        public void handle(long chatId, String text, Session session) {
+        public void handle(long chatId, long accountId, String text, Session session) {
             handleCalls++;
+            lastAccountId = accountId;
         }
     }
 
@@ -148,7 +168,7 @@ class RouterTest {
         int handleCalls;
 
         FakeCallbackHandler() {
-            super(null, null, null);
+            super(null, null, null, null);
         }
 
         @Override
@@ -183,14 +203,14 @@ class RouterTest {
         }
     }
 
-    /** Заглушка {@link MaterialHandler} с управляемым {@code supports}. */
+    /** Заглушка {@link MaterialHandler} с управляемым типом. */
     private static class FakeMaterialHandler implements MaterialHandler {
         int handleCalls;
-        boolean supportsReturn = true;
+        MessageType type = MessageType.TEXT;
 
         @Override
-        public boolean supports(UserMessage message) {
-            return supportsReturn;
+        public MessageType type() {
+            return type;
         }
 
         @Override

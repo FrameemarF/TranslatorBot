@@ -6,8 +6,6 @@ import org.junit.jupiter.api.Test;
 import org.translatorBot.Language;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Модульные тесты для {@link FallbackSpeechService}: только основные сценарии.
@@ -23,7 +21,7 @@ class FallbackSpeechServiceTest {
         /** Текст, который возвращает сервис. */
         final String reply;
         /** Если не {@code null}, {@link #recognize} бросает эту ошибку. */
-        Exception error;
+        RuntimeException error;
         /** Сколько раз сервис вызывали. */
         int calls = 0;
         /** Последние переданные аудиоданные. */
@@ -42,7 +40,7 @@ class FallbackSpeechServiceTest {
 
         /** {@inheritDoc} */
         @Override
-        public String recognize(byte[] audio, String fileName, Language language) throws Exception {
+        public String recognize(byte[] audio, String fileName, Language language) {
             calls++;
             lastAudio = audio;
             lastFileName = fileName;
@@ -69,7 +67,7 @@ class FallbackSpeechServiceTest {
 
     /** Если основной сервис работает, возвращается его результат, запасной не вызывается. */
     @Test
-    void usesPrimaryWhenItWorks() throws Exception {
+    void usesPrimaryWhenItWorks() {
         String text = service.recognize(audio, "voice.ogg", Language.RU);
 
         Assertions.assertEquals("from primary", text);
@@ -78,7 +76,7 @@ class FallbackSpeechServiceTest {
 
     /** Если основной сервис недоступен, результат берётся у запасного с теми же аргументами. */
     @Test
-    void switchesToFallbackWhenPrimaryUnavailable() throws Exception {
+    void switchesToFallbackWhenPrimaryUnavailable() {
         primary.error = new SpeechUnavailableException("rate limit");
 
         String text = service.recognize(audio, "voice.ogg", Language.DE);
@@ -92,8 +90,8 @@ class FallbackSpeechServiceTest {
 
     /** Сетевая ошибка основного сервиса тоже приводит к переключению на запасной. */
     @Test
-    void switchesToFallbackOnNetworkError() throws Exception {
-        primary.error = new IOException("connection reset");
+    void switchesToFallbackOnNetworkError() {
+        primary.error = new SpeechUnavailableException("connection reset", new IOException("reset"));
 
         Assertions.assertEquals("from fallback", service.recognize(audio, "voice.ogg", Language.RU));
     }
@@ -122,11 +120,16 @@ class FallbackSpeechServiceTest {
     /** При прерывании потока ошибка пробрасывается, флаг прерывания восстанавливается, запасной не вызывается. */
     @Test
     void interruptionIsPropagatedWithoutFallback() {
-        primary.error = new InterruptedException("stop");
+        primary.error = new SpeechUnavailableException("stop", new InterruptedException("stop"));
+        Thread.currentThread().interrupt();
 
-        Assertions.assertThrows(InterruptedException.class,
-                () -> service.recognize(audio, "voice.ogg", Language.RU));
-        Assertions.assertTrue(Thread.interrupted()); // проверяет и сбрасывает флаг, чтобы не влиять на другие тесты
-        Assertions.assertEquals(0, fallback.calls);
+        try {
+            Assertions.assertThrows(SpeechUnavailableException.class,
+                    () -> service.recognize(audio, "voice.ogg", Language.RU));
+            Assertions.assertTrue(Thread.interrupted()); // проверяет и сбрасывает флаг, чтобы не влиять на другие тесты
+            Assertions.assertEquals(0, fallback.calls);
+        } finally {
+            Thread.interrupted();
+        }
     }
 }

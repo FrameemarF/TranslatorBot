@@ -14,7 +14,6 @@ public interface SpeechRecognitionService {
      * @return распознанный непустой текст
      * @throws SpeechUnrecognizedException если речи в записи не найдено
      * @throws SpeechUnavailableException  если сервис недоступен или не настроен
-     * @throws Exception                   при прочих сетевых ошибках
      */
-    String recognize(byte[] audio, String fileName, Language language) throws Exception;
+    String recognize(byte[] audio, String fileName, Language language);
 }

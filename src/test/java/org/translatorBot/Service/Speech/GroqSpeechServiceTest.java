@@ -148,13 +148,14 @@ class GroqSpeechServiceTest {
         Assertions.assertNull(method.get());
     }
 
-    /** Если сервер недоступен по сети, ошибка соединения пробрасывается наружу. */
+    /** Если сервер недоступен по сети, ошибка оборачивается в {@link SpeechUnavailableException}. */
     @Test
-    void unreachableServerThrowsIoError() {
+    void unreachableServerThrowsUnavailableError() {
         GroqSpeechService offline = service("k");
         server.stop(0);
 
-        Assertions.assertThrows(IOException.class,
+        SpeechUnavailableException e = Assertions.assertThrows(SpeechUnavailableException.class,
                 () -> offline.recognize(new byte[]{1}, "voice.ogg", Language.EN));
+        Assertions.assertInstanceOf(IOException.class, e.getCause());
     }
 }

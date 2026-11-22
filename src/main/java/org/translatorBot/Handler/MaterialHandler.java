@@ -1,22 +1,23 @@
 package org.translatorBot.Handler;
 
+import org.translatorBot.Model.MessageType;
 import org.translatorBot.Model.UserMessage;
 import org.translatorBot.Session.Session;
 
 /**
  * Обработчик одного типа материала для перевода (текст, файл, голос).
- * Router выбирает подходящий обработчик через {@link #supports(UserMessage)}.
- * К моменту вызова {@link #handle(UserMessage, Session)} языки в сессии уже выбраны.
+ * Router раскладывает обработчики по типам сообщений через {@link #type()},
+ * поэтому к моменту вызова {@link #handle(UserMessage, Session)} языки
+ * в сессии уже выбраны.
  */
 public interface MaterialHandler {
 
     /**
-     * Проверяет, умеет ли обработчик работать с данным сообщением.
+     * Возвращает тип сообщения, который обрабатывает реализация.
      *
-     * @param message входящее сообщение
-     * @return {@code true}, если обработчик поддерживает этот тип
+     * @return поддерживаемый тип материала
      */
-    boolean supports(UserMessage message);
+    MessageType type();
 
     /**
      * Обрабатывает материал: проверяет, переводит и отправляет ответ.

@@ -7,12 +7,12 @@ import org.telegram.telegrambots.meta.api.methods.GetFile;
 import org.telegram.telegrambots.meta.api.methods.send.SendDocument;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.InputFile;
+import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
 import org.translatorBot.Model.AppKeyboard;
 import org.translatorBot.Telegram.TelegramMapper;
 
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
+import java.nio.file.Path;
 
 /**
  * Реализация {@link MessageSender} для Telegram.
@@ -63,20 +63,22 @@ public class SenderTG implements MessageSender {
     }
 
     @Override
-    public byte[] download(String fileId) throws Exception {
-        org.telegram.telegrambots.meta.api.objects.File file =
-                client.execute(GetFile.builder().fileId(fileId).build());
-        try (InputStream in = client.downloadFileAsStream(file)) {
-            return in.readAllBytes();
+    public Path download(String fileId) {
+        try {
+            org.telegram.telegrambots.meta.api.objects.File file =
+                    client.execute(GetFile.builder().fileId(fileId).build());
+            return client.downloadFile(file).toPath();
+        } catch (TelegramApiException e) {
+            throw new FileDownloadException("Failed to download file " + fileId, e);
         }
     }
 
     @Override
-    public void sendDocument(long chatId, String fileName, byte[] content,
+    public void sendDocument(long chatId, String fileName, Path content,
                              String caption, AppKeyboard keyboard) {
         SendDocument.SendDocumentBuilder<?, ?> b = SendDocument.builder()
                 .chatId(String.valueOf(chatId))
-                .document(new InputFile(new ByteArrayInputStream(content), fileName))
+                .document(new InputFile(content.toFile(), fileName))
                 .caption(caption);
         if (keyboard != null) {
             b.replyMarkup(mapper.toTelegramKeyboard(keyboard));

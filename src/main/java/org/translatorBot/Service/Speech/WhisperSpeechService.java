@@ -60,37 +60,43 @@ public class WhisperSpeechService implements SpeechRecognitionService {
      * @return распознанный текст (непустой, обрезанный по краям)
      * @throws SpeechUnavailableException  если сервис вернул ошибку или недоступен
      * @throws SpeechUnrecognizedException если в аудио нет речи либо результат пуст
-     * @throws Exception при прочих ошибках ввода-вывода или разбора ответа
      */
     @Override
-    public String recognize(byte[] audio, String fileName, Language language) throws Exception {
+    public String recognize(byte[] audio, String fileName, Language language) {
         URI uri = URI.create(asrUrl + "?task=transcribe&output=json&encode=true&language="
                 + language.code);
-        String boundary = "----TranslatorBot" + UUID.randomUUID();
 
-        HttpRequest request = HttpRequest.newBuilder(uri)
-                .timeout(Duration.ofSeconds(120)) // на CPU распознавание может занять время
-                .header("Accept", "application/json")
-                .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-                .POST(HttpRequest.BodyPublishers.ofByteArray(multipart(boundary, audio, fileName)))
-                .build();
+        try {
+            String boundary = "----TranslatorBot" + UUID.randomUUID();
+            HttpRequest request = HttpRequest.newBuilder(uri)
+                    .timeout(Duration.ofSeconds(120)) // на CPU распознавание может занять время
+                    .header("Accept", "application/json")
+                    .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                    .POST(HttpRequest.BodyPublishers.ofByteArray(multipart(boundary, audio, fileName)))
+                    .build();
 
-        // Если контейнер выключен, здесь вылетит IOException — VoiceHandler покажет
-        // «сервис распознавания недоступен».
-        HttpResponse<String> response = http.send(request,
-                HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            // Если контейнер выключен, здесь вылетит IOException — VoiceHandler покажет
+            // «сервис распознавания недоступен».
+            HttpResponse<String> response = http.send(request,
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
 
-        if (response.statusCode() != 200) {
-            throw new SpeechUnavailableException(
-                    "Whisper HTTP " + response.statusCode() + ": " + response.body());
+            if (response.statusCode() != 200) {
+                throw new SpeechUnavailableException(
+                        "Whisper HTTP " + response.statusCode() + ": " + response.body());
+            }
+
+            JsonNode root = json.readTree(response.body());
+            String text = root.path("text").asText("").trim();
+            if (text.isEmpty() || isSilence(root.path("segments"))) {
+                throw new SpeechUnrecognizedException();
+            }
+            return text;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new SpeechUnavailableException("Whisper request interrupted", e);
+        } catch (IOException e) {
+            throw new SpeechUnavailableException("Whisper request failed: " + e.getMessage(), e);
         }
-
-        JsonNode root = json.readTree(response.body());
-        String text = root.path("text").asText("").trim();
-        if (text.isEmpty() || isSilence(root.path("segments"))) {
-            throw new SpeechUnrecognizedException();
-        }
-        return text;
     }
 
     /** Whisper на тишине склонен «придумывать» текст, поэтому смотрим на no_speech_prob. */

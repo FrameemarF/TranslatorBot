@@ -3,10 +3,14 @@ package org.translatorBot.Handler;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.translatorBot.History.FakeHistoryService;
+import org.translatorBot.History.TranslationRecord;
 import org.translatorBot.Language;
 import org.translatorBot.Model.AppKeyboard;
+import org.translatorBot.Model.MessageType;
 import org.translatorBot.Model.UserMessage;
 import org.translatorBot.Sender.MessageSender;
+import org.translatorBot.Service.Translation.TranslationException;
 import org.translatorBot.Service.Translation.TranslationService;
 import org.translatorBot.Session.Session;
 import org.translatorBot.Ui;
@@ -20,6 +24,7 @@ class TextHandlerTest {
 
     private FakeSender sender;
     private FakeTranslator translator;
+    private FakeHistoryService history;
     private Ui ui;
     private TextHandler handler;
     private Session session;
@@ -28,8 +33,9 @@ class TextHandlerTest {
     void setUp() {
         sender = new FakeSender();
         translator = new FakeTranslator();
+        history = new FakeHistoryService();
         ui = new Ui();
-        handler = new TextHandler(sender, translator, ui);
+        handler = new TextHandler(sender, translator, ui, history);
         session = new Session();
         session.setSource(Language.RU);
         session.setTarget(Language.EN);
@@ -67,6 +73,38 @@ class TextHandlerTest {
         Assertions.assertEquals(ui.translation("Hello"), sender.lastText);
         Assertions.assertNotNull(sender.lastKeyboard);
         Assertions.assertEquals(Session.State.IDLE, session.getState());
+        Assertions.assertEquals(1, history.saveCalls);
+        Assertions.assertEquals(chatId, history.lastAccountId);
+        TranslationRecord saved = history.lastSaved;
+        Assertions.assertEquals(MessageType.TEXT, saved.materialType());
+        Assertions.assertEquals(Language.RU, saved.source());
+        Assertions.assertEquals(Language.EN, saved.target());
+        Assertions.assertEquals("Привет", saved.sourceText());
+        Assertions.assertEquals("Hello", saved.translatedText());
+    }
+
+    /** Если история недоступна, перевод отправляется с предупреждением. */
+    @Test
+    void shouldWarnWhenHistoryIsUnavailable() {
+        translator.detectedLanguage = Language.RU;
+        translator.result = "Hello";
+        history.fail = true;
+
+        handler.handle(createMessage("Привет"), session);
+
+        Assertions.assertTrue(sender.lastText.contains(ui.historySaveFailed));
+        Assertions.assertEquals(Session.State.IDLE, session.getState());
+    }
+
+    /** При ошибке перевода история не сохраняется. */
+    @Test
+    void shouldNotSaveHistoryWhenTranslationFails() {
+        translator.shouldThrow = true;
+        translator.detectedLanguage = Language.RU;
+
+        handler.handle(createMessage("Привет"), session);
+
+        Assertions.assertEquals(0, history.saveCalls);
     }
 
     @Test
@@ -120,10 +158,11 @@ class TextHandlerTest {
         public void ackCallback(String callbackId) {}
 
         @Override
-        public byte[] download(String fileId) { return new byte[0]; }
+        public java.nio.file.Path download(String fileId) { return null; }
 
         @Override
-        public void sendDocument(long chatId, String fileName, byte[] content, String caption, AppKeyboard keyboard) {}
+        public void sendDocument(long chatId, String fileName, java.nio.file.Path content,
+                                 String caption, AppKeyboard keyboard) {}
     }
 
     /** Заглушка TranslationService. */
@@ -135,17 +174,17 @@ class TextHandlerTest {
         Language detectedLanguage = Language.RU;
 
         @Override
-        public String translate(String text, Language from, Language to) throws Exception {
+        public String translate(String text, Language from, Language to) {
             translateCalls++;
             lastText = text;
-            if (shouldThrow) throw new Exception("Translation failed");
+            if (shouldThrow) throw new TranslationException("Translation failed");
             return result;
         }
 
         @Override
-        public Language detect(String text) throws Exception {
-            if (shouldThrow) throw new Exception("Detection failed");
-            return detectedLanguage;
+        public java.util.Optional<Language> detect(String text) {
+            if (shouldThrow) throw new TranslationException("Detection failed");
+            return java.util.Optional.ofNullable(detectedLanguage);
         }
     }
 }

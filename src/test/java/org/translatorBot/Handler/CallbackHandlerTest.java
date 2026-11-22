@@ -3,6 +3,7 @@ package org.translatorBot.Handler;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.translatorBot.History.FakeHistoryService;
 import org.translatorBot.Language;
 import org.translatorBot.Model.AppKeyboard;
 import org.translatorBot.Model.UserCallback;
@@ -10,6 +11,7 @@ import org.translatorBot.Sender.MessageSender;
 import org.translatorBot.Session.InMemorySessionStore;
 import org.translatorBot.Session.Session;
 import org.translatorBot.Session.SessionStore;
+import org.translatorBot.Ui;
 
 /**
  * Модульные тесты для {@link CallbackHandler}.
@@ -23,6 +25,7 @@ class CallbackHandlerTest {
     private SessionStore sessions;
     private Session session;
     private FakeDialogFlow flow;
+    private FakeHistoryService history;
     private CallbackHandler handler;
 
     @BeforeEach
@@ -31,7 +34,9 @@ class CallbackHandlerTest {
         sessions = new InMemorySessionStore();
         session = sessions.get(chatId);
         flow = new FakeDialogFlow();
-        handler = new CallbackHandler(sender, sessions, flow);
+        history = new FakeHistoryService();
+        HistoryHandler historyHandler = new HistoryHandler(sender, history, new Ui());
+        handler = new CallbackHandler(sender, sessions, flow, historyHandler);
     }
 
     private UserCallback createCallback(String data) {
@@ -103,6 +108,56 @@ class CallbackHandlerTest {
         Assertions.assertEquals(1, flow.showUnknownCalls);
     }
 
+    /** Кнопка «История» запрашивает последние переводы пользователя. */
+    @Test
+    void historyButtonShowsHistory() {
+        handler.handle(createCallback("HISTORY"));
+
+        Assertions.assertEquals(1, history.recentCalls);
+        Assertions.assertEquals(chatId, history.lastAccountId);
+        Assertions.assertEquals(HistoryHandler.HISTORY_LIMIT + 1, history.lastLimit);
+        Assertions.assertEquals(0, history.lastOffset);
+    }
+
+    /** Кнопка страницы запрашивает историю с нужным смещением и границей снимка. */
+    @Test
+    void historyPageButtonRequestsOffset() {
+        handler.handle(createCallback("HISTORY_PAGE_2_42"));
+
+        Assertions.assertEquals(1, history.recentCalls);
+        Assertions.assertEquals(chatId, history.lastAccountId);
+        Assertions.assertEquals(2 * HistoryHandler.HISTORY_LIMIT, history.lastOffset);
+        Assertions.assertEquals(42, history.lastMaxId);
+        Assertions.assertEquals(HistoryHandler.HISTORY_LIMIT + 1, history.lastLimit);
+    }
+
+    /** Старый формат кнопки без границы снимка тоже поддерживается. */
+    @Test
+    void legacyHistoryPageButtonUsesUnboundedSnapshot() {
+        handler.handle(createCallback("HISTORY_PAGE_2"));
+
+        Assertions.assertEquals(1, history.recentCalls);
+        Assertions.assertEquals(Long.MAX_VALUE, history.lastMaxId);
+    }
+
+    /** Некорректная страница в callback-данных не ломает обработку. */
+    @Test
+    void invalidHistoryPageShowsUnknown() {
+        handler.handle(createCallback("HISTORY_PAGE_bad"));
+
+        Assertions.assertEquals(1, flow.showUnknownCalls);
+        Assertions.assertEquals(0, history.recentCalls);
+    }
+
+    /** Кнопка «Очистить историю» удаляет историю пользователя. */
+    @Test
+    void clearHistoryButtonClearsHistory() {
+        handler.handle(createCallback("CLEAR_HISTORY"));
+
+        Assertions.assertEquals(1, history.clearCalls);
+        Assertions.assertEquals(chatId, history.lastAccountId);
+    }
+
     private static class FakeSender implements MessageSender {
         int ackCalls;
         String lastAckId;
@@ -115,8 +170,8 @@ class CallbackHandlerTest {
 
         @Override public void send(long chatId, String text) {}
         @Override public void send(long chatId, String text, AppKeyboard keyboard) {}
-        @Override public byte[] download(String fileId) { return new byte[0]; }
-        @Override public void sendDocument(long chatId, String fileName, byte[] content, String caption, AppKeyboard keyboard) {}
+        @Override public java.nio.file.Path download(String fileId) { return null; }
+        @Override public void sendDocument(long chatId, String fileName, java.nio.file.Path content, String caption, AppKeyboard keyboard) {}
     }
 
     private static class FakeDialogFlow extends DialogFlow {

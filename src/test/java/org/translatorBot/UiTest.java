@@ -39,10 +39,46 @@ class UiTest {
         return result;
     }
 
-    /** Главное меню содержит кнопки «Перевести» и «Помощь». */
+    /** Главное меню содержит кнопки «Перевести», «История» и «Помощь». */
     @Test
-    void mainMenuHasTranslateAndHelp() {
-        Assertions.assertEquals(List.of("TRANSLATE", "HELP"), callbackData(ui.mainMenu()));
+    void mainMenuHasTranslateHistoryAndHelp() {
+        Assertions.assertEquals(List.of("TRANSLATE", "HISTORY", "HELP"), callbackData(ui.mainMenu()));
+    }
+
+    /** Меню истории содержит кнопки «Очистить историю» и «В меню». */
+    @Test
+    void historyMenuHasClearAndBack() {
+        Assertions.assertEquals(List.of("CLEAR_HISTORY", "MENU"), callbackData(ui.historyMenu()));
+    }
+
+    /** На средней странице есть переходы и к более новым, и к более старым записям. */
+    @Test
+    void historyMenuHasBothNavigationButtons() {
+        Assertions.assertEquals(
+                List.of("HISTORY_PAGE_0_42", "HISTORY_PAGE_2_42", "CLEAR_HISTORY", "MENU"),
+                callbackData(ui.historyMenu(1, true, true, 42)));
+    }
+
+    /** На первой странице нельзя перейти к более новым записям. */
+    @Test
+    void firstHistoryPageHasOnlyOlderButton() {
+        Assertions.assertEquals(
+                List.of("HISTORY_PAGE_1_42", "CLEAR_HISTORY", "MENU"),
+                callbackData(ui.historyMenu(0, false, true, 42)));
+    }
+
+    /** На последней странице нельзя перейти к более старым записям. */
+    @Test
+    void lastHistoryPageHasOnlyNewerButton() {
+        Assertions.assertEquals(
+                List.of("HISTORY_PAGE_1_42", "CLEAR_HISTORY", "MENU"),
+                callbackData(ui.historyMenu(2, true, false, 42)));
+    }
+
+    /** Пустая история предлагает перевод и возврат в меню. */
+    @Test
+    void emptyHistoryMenuHasTranslateAndBack() {
+        Assertions.assertEquals(List.of("TRANSLATE", "MENU"), callbackData(ui.emptyHistoryMenu()));
     }
 
     /** После перевода показываются кнопки «Ещё», «Сменить язык» и «В меню». */
@@ -73,7 +109,8 @@ class UiTest {
     @Test
     void everyButtonIsValid() {
         List<AppKeyboard> keyboards = List.of(
-                ui.mainMenu(), ui.afterTranslation(), ui.sourceChoice(), ui.targetChoice());
+                ui.mainMenu(), ui.afterTranslation(), ui.sourceChoice(), ui.targetChoice(),
+                ui.historyMenu(), ui.emptyHistoryMenu());
 
         for (AppKeyboard k : keyboards) {
             for (String t : texts(k)) {
