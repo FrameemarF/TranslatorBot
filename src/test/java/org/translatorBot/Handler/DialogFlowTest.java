@@ -154,5 +154,6 @@ class DialogFlowTest {
         @Override public void ackCallback(String callbackId) {}
         @Override public java.nio.file.Path download(String fileId) { return null; }
         @Override public void sendDocument(long chatId, String fileName, java.nio.file.Path content, String caption, AppKeyboard keyboard) {}
+        @Override public void sendVoice(long chatId, byte[] audio, String fileName) {}
     }
 }

@@ -218,6 +218,9 @@ class DocumentHandlerTest {
         }
 
         @Override
+        public void sendVoice(long chatId, byte[] audio, String fileName) {}
+
+        @Override
         public void ackCallback(String callbackId) {}
     }
 

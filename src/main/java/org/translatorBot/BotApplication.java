@@ -24,9 +24,11 @@ import org.translatorBot.Platforms.Discord.DiscordMapper;
 import org.translatorBot.Platforms.MessageSender;
 import org.translatorBot.Platforms.Telegram.TelegramBot;
 import org.translatorBot.Platforms.Telegram.TelegramMapper;
+import org.translatorBot.Service.Speech.EdgeTtsService;
 import org.translatorBot.Service.Speech.FallbackSpeechService;
 import org.translatorBot.Service.Speech.GroqSpeechService;
 import org.translatorBot.Service.Speech.SpeechRecognitionService;
+import org.translatorBot.Service.Speech.SpeechSynthesisService;
 import org.translatorBot.Service.Speech.WhisperSpeechService;
 import org.translatorBot.Service.Translation.LibreTranslateService;
 import org.translatorBot.Service.Translation.TranslationService;
@@ -43,7 +45,7 @@ import java.util.concurrent.CountDownLatch;
  * Точка сборки приложения (composition root).
  * <p>
  * Здесь один раз создаются общие сервисы — база, история, профили, статистика,
- * перевод и распознавание речи — и передаются в боты платформ через
+ * перевод, распознавание и синтез речи — и передаются в боты платформ через
  * конструкторы. Сами боты живут в {@link TelegramBot} и {@link DiscordBot}.
  */
 public class BotApplication {
@@ -60,6 +62,8 @@ public class BotApplication {
     private TranslationService translator;
     /** Общий сервис распознавания речи. */
     private SpeechRecognitionService speech;
+    /** Общий сервис синтеза речи. */
+    private SpeechSynthesisService tts;
     /** Общие тексты интерфейса. */
     private Ui ui;
 
@@ -128,6 +132,7 @@ public class BotApplication {
         statistics = new JdbcStatisticsService(database);
         translator = new LibreTranslateService(config.translation().url());
         speech = buildSpeech(config.speech());
+        tts = new EdgeTtsService(config.tts().url());
         ui = new Ui();
     }
 
