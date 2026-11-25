@@ -3,6 +3,8 @@ package org.translatorBot.History;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.translatorBot.Config.DatabaseConfig;
+import org.translatorBot.Database.JdbcDatabase;
 import org.translatorBot.Language;
 import org.translatorBot.Model.MessageType;
 
@@ -22,6 +24,8 @@ class JdbcHistoryServiceTest {
 
     /** JDBC-адрес тестовой базы. */
     private String jdbcUrl;
+    /** Доступ к тестовой базе. */
+    private JdbcDatabase database;
     /** Проверяемый сервис истории. */
     private JdbcHistoryService history;
 
@@ -30,7 +34,8 @@ class JdbcHistoryServiceTest {
     void setUp() {
         jdbcUrl = "jdbc:h2:mem:history-" + System.nanoTime()
                 + ";MODE=PostgreSQL;DB_CLOSE_DELAY=-1";
-        history = new JdbcHistoryService(jdbcUrl, "sa", "", Platform.TELEGRAM);
+        database = new JdbcDatabase(new DatabaseConfig(jdbcUrl, "sa", ""));
+        history = new JdbcHistoryService(database, Platform.TELEGRAM);
     }
 
     /** Сохранённые переводы возвращаются от новых к старым. */
@@ -149,7 +154,7 @@ class JdbcHistoryServiceTest {
     @Test
     void historyIsSeparatePerPlatform() {
         JdbcHistoryService discord =
-                new JdbcHistoryService(jdbcUrl, "sa", "", Platform.DISCORD);
+                new JdbcHistoryService(database, Platform.DISCORD);
         history.save(accountId, record("one", "uno", "2026-01-01T10:00:00Z"));
 
         Assertions.assertEquals(1, history.recent(accountId, 10).size());

@@ -8,7 +8,7 @@ import org.translatorBot.History.TranslationRecord;
 import org.translatorBot.Language;
 import org.translatorBot.Model.AppKeyboard;
 import org.translatorBot.Model.MessageType;
-import org.translatorBot.Sender.MessageSender;
+import org.translatorBot.Platforms.MessageSender;
 import org.translatorBot.Ui;
 
 import java.time.Instant;

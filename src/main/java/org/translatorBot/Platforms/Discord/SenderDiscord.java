@@ -1,4 +1,4 @@
-package org.translatorBot.Discord;
+package org.translatorBot.Platforms.Discord;
 
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
@@ -11,8 +11,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.translatorBot.Model.AppButton;
 import org.translatorBot.Model.AppKeyboard;
-import org.translatorBot.Sender.FileDownloadException;
-import org.translatorBot.Sender.MessageSender;
+import org.translatorBot.Platforms.FileDownloadException;
+import org.translatorBot.Platforms.MessageSender;
 
 import java.io.IOException;
 import java.net.URI;

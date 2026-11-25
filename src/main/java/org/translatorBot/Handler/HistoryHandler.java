@@ -6,7 +6,7 @@ import org.translatorBot.History.HistoryException;
 import org.translatorBot.History.HistoryService;
 import org.translatorBot.History.TranslationRecord;
 import org.translatorBot.Model.MessageType;
-import org.translatorBot.Sender.MessageSender;
+import org.translatorBot.Platforms.MessageSender;
 import org.translatorBot.Ui;
 
 import java.util.List;

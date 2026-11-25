@@ -7,7 +7,7 @@ import org.translatorBot.History.FakeHistoryService;
 import org.translatorBot.Language;
 import org.translatorBot.Model.AppKeyboard;
 import org.translatorBot.Model.UserCallback;
-import org.translatorBot.Sender.MessageSender;
+import org.translatorBot.Platforms.MessageSender;
 import org.translatorBot.Session.InMemorySessionStore;
 import org.translatorBot.Session.Session;
 import org.translatorBot.Session.SessionStore;

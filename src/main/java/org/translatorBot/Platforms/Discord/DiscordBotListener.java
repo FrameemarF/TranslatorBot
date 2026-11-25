@@ -1,4 +1,4 @@
-package org.translatorBot.Discord;
+package org.translatorBot.Platforms.Discord;
 
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
@@ -50,7 +50,8 @@ public class DiscordBotListener extends ListenerAdapter {
         event.deferReply().queue(null, error ->
                 log.error("Failed to acknowledge Discord command {}", command, error));
         try {
-            router.handleMessage(new UserMessage(chatId, accountId, command));
+            router.handleMessage(new UserMessage(chatId, accountId, command)
+                    .withUserName(event.getUser().getName()));
         } finally {
             event.getHook().deleteOriginal().queue(null, error ->
                     log.debug("Failed to delete Discord deferred reply for {}", command));

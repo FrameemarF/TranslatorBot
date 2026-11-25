@@ -1,4 +1,4 @@
-package org.translatorBot.Sender;
+package org.translatorBot.Platforms;
 
 import org.translatorBot.Model.AppKeyboard;
 

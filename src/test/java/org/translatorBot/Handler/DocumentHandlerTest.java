@@ -10,8 +10,8 @@ import org.translatorBot.Language;
 import org.translatorBot.Model.AppKeyboard;
 import org.translatorBot.Model.MessageType;
 import org.translatorBot.Model.UserMessage;
-import org.translatorBot.Sender.FileDownloadException;
-import org.translatorBot.Sender.MessageSender;
+import org.translatorBot.Platforms.FileDownloadException;
+import org.translatorBot.Platforms.MessageSender;
 import org.translatorBot.Service.Translation.TranslationException;
 import org.translatorBot.Service.Translation.TranslationService;
 import org.translatorBot.Session.Session;
@@ -55,11 +55,6 @@ class DocumentHandlerTest {
 
     private UserMessage createDocumentMessage(String fileName, Long fileSize) {
         return new UserMessage(chatId, "doc-123", fileName, fileSize);
-    }
-
-    @Test
-    void handlesDocumentMessages() {
-        Assertions.assertEquals(MessageType.DOCUMENT, handler.type());
     }
 
     @Test

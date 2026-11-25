@@ -8,10 +8,6 @@ import org.translatorBot.Model.UserMessage;
 import org.translatorBot.Session.Session;
 import org.translatorBot.Session.SessionStore;
 
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Map;
-
 /**
  * Маршрутизатор входящих обновлений. Принимает универсальные модели
  * (UserMessage, UserCallback) и распределяет их по обработчикам.
@@ -29,34 +25,34 @@ public class Router {
     private final CallbackHandler callbacks;
     /** Шаги диалога. */
     private final DialogFlow flow;
-    /** Обработчики материалов по типу сообщения. */
-    private final Map<MessageType, MaterialHandler> handlers;
+    /** Обработчик текста. */
+    private final TextHandler text;
+    /** Обработчик файлов. */
+    private final DocumentHandler documents;
+    /** Обработчик голосовых. */
+    private final VoiceHandler voice;
 
     /**
-     * Создаёт маршрутизатор с заданными зависимостями. Обработчики
-     * раскладываются по типам сообщений; дубликат типа — ошибка конфигурации.
+     * Создаёт маршрутизатор с заданными зависимостями.
      *
      * @param sessions  хранилище сессий
      * @param commands  обработчик команд
      * @param callbacks обработчик нажатий кнопок
      * @param flow      шаги диалога
-     * @param handlers  обработчики материала (текст, файл, голос)
-     * @throws IllegalArgumentException если для одного типа передано два обработчика
+     * @param text      обработчик текста
+     * @param documents обработчик файлов
+     * @param voice     обработчик голосовых
      */
     public Router(SessionStore sessions, CommandHandler commands, CallbackHandler callbacks,
-                  DialogFlow flow, List<MaterialHandler> handlers) {
+                  DialogFlow flow, TextHandler text, DocumentHandler documents,
+                  VoiceHandler voice) {
         this.sessions = sessions;
         this.commands = commands;
         this.callbacks = callbacks;
         this.flow = flow;
-        this.handlers = new EnumMap<>(MessageType.class);
-        for (MaterialHandler handler : handlers) {
-            MaterialHandler previous = this.handlers.put(handler.type(), handler);
-            if (previous != null) {
-                throw new IllegalArgumentException(
-                        "Duplicate material handler for " + handler.type());
-            }
-        }
+        this.text = text;
+        this.documents = documents;
+        this.voice = voice;
     }
 
     /**
@@ -97,12 +93,14 @@ public class Router {
             flow.startSourceChoice(msg.chatId(), s);
             return;
         }
-        MaterialHandler handler = handlers.get(msg.type());
-        if (handler == null) {
-            log.debug("No material handler for {}", msg.type());
-            flow.showUnsupportedMaterial(msg.chatId());
-            return;
+        switch (msg.type()) {
+            case TEXT -> text.handle(msg, s);
+            case DOCUMENT -> documents.handle(msg, s);
+            case VOICE -> voice.handle(msg, s);
+            default -> {
+                log.debug("No material handler for {}", msg.type());
+                flow.showUnsupportedMaterial(msg.chatId());
+            }
         }
-        handler.handle(msg, s);
     }
 }
