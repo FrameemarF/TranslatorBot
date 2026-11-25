@@ -83,6 +83,9 @@ public class DiscordBot {
         jda.updateCommands().addCommands(
                 Commands.slash("start", "Начать работу и показать меню"),
                 Commands.slash("translate", "Начать перевод"),
+                Commands.slash("profile", "Профиль и личная статистика"),
+                Commands.slash("settings", "Язык-цель и режим ответа"),
+                Commands.slash("stats", "Общая статистика"),
                 Commands.slash("history", "Показать последние переводы"),
                 Commands.slash("clear_history", "Удалить историю переводов"),
                 Commands.slash("help", "Список команд"),

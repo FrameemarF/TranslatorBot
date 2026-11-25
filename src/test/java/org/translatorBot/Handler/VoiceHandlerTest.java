@@ -5,6 +5,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.translatorBot.History.FakeHistoryService;
+import org.translatorBot.History.Platform;
 import org.translatorBot.History.TranslationRecord;
 import org.translatorBot.Language;
 import org.translatorBot.Model.AppKeyboard;
@@ -49,7 +50,7 @@ class VoiceHandlerTest {
         translator = new FakeTranslator();
         history = new FakeHistoryService();
         ui = new Ui();
-        handler = new VoiceHandler(sender, speech, translator, ui, history);
+        handler = new VoiceHandler(sender, speech, translator, ui, history, Platform.TELEGRAM);
         session = new Session();
         session.setState(Session.State.WAITING_TEXT);
         session.setSource(Language.RU);

@@ -72,6 +72,14 @@ class DialogFlowTest {
     }
 
     @Test
+    void startTranslationUsesDefaultTarget() {
+        session.setTarget(Language.DE);
+        flow.startTranslation(chatId, session, Language.EN);
+        Assertions.assertEquals(Language.EN, session.getTarget());
+        Assertions.assertEquals(Session.State.CHOOSING_SOURCE, session.getState());
+    }
+
+    @Test
     void pickSourceSavesSourceAndSendsTargetKeyboard() {
         flow.pickSource(chatId, session, Language.DE);
         Assertions.assertEquals(Language.DE, session.getSource());
