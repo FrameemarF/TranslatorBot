@@ -4,14 +4,11 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.translatorBot.Language;
-import org.translatorBot.Model.MessageType;
 import org.translatorBot.Model.UserCallback;
 import org.translatorBot.Model.UserMessage;
 import org.translatorBot.Session.InMemorySessionStore;
 import org.translatorBot.Session.Session;
 import org.translatorBot.Session.SessionStore;
-
-import java.util.List;
 
 /**
  * Модульные тесты для {@link Router}.
@@ -27,7 +24,9 @@ class RouterTest {
     private FakeCommandHandler fakeCommands;
     private FakeCallbackHandler fakeCallbacks;
     private FakeDialogFlow fakeFlow;
-    private FakeMaterialHandler fakeMaterialHandler;
+    private FakeTextHandler fakeText;
+    private FakeDocumentHandler fakeDocuments;
+    private FakeVoiceHandler fakeVoice;
 
     private Router router;
 
@@ -40,10 +39,12 @@ class RouterTest {
         fakeCommands = new FakeCommandHandler();
         fakeCallbacks = new FakeCallbackHandler();
         fakeFlow = new FakeDialogFlow();
-        fakeMaterialHandler = new FakeMaterialHandler();
+        fakeText = new FakeTextHandler();
+        fakeDocuments = new FakeDocumentHandler();
+        fakeVoice = new FakeVoiceHandler();
 
         router = new Router(sessions, fakeCommands, fakeCallbacks, fakeFlow,
-                List.of(fakeMaterialHandler));
+                fakeText, fakeDocuments, fakeVoice);
     }
 
     // ---------- тесты маршрутизации ----------
@@ -56,7 +57,9 @@ class RouterTest {
 
         Assertions.assertEquals(1, fakeCommands.handleCalls);
         Assertions.assertEquals(0, fakeCallbacks.handleCalls);
-        Assertions.assertEquals(0, fakeMaterialHandler.handleCalls);
+        Assertions.assertEquals(0, fakeText.handleCalls);
+        Assertions.assertEquals(0, fakeDocuments.handleCalls);
+        Assertions.assertEquals(0, fakeVoice.handleCalls);
     }
 
     /** Проверяет, что в команду передаётся идентификатор аккаунта пользователя. */
@@ -76,12 +79,11 @@ class RouterTest {
 
         Assertions.assertEquals(1, fakeCallbacks.handleCalls);
         Assertions.assertEquals(0, fakeCommands.handleCalls);
-        Assertions.assertEquals(0, fakeMaterialHandler.handleCalls);
     }
 
-    /** Проверяет, что материал в состоянии WAITING_TEXT уходит в {@link MaterialHandler}. */
+    /** Проверяет, что текст в состоянии WAITING_TEXT уходит в {@link TextHandler}. */
     @Test
-    void materialGoesToMaterialHandlerWhenWaiting() {
+    void textGoesToTextHandlerWhenWaiting() {
         Session session = sessions.get(chatId);
         session.setState(Session.State.WAITING_TEXT);
         session.setSource(Language.RU);
@@ -90,9 +92,43 @@ class RouterTest {
         UserMessage msg = new UserMessage(chatId, "Привет");
         router.handleMessage(msg);
 
-        Assertions.assertEquals(1, fakeMaterialHandler.handleCalls);
+        Assertions.assertEquals(1, fakeText.handleCalls);
+        Assertions.assertEquals(0, fakeDocuments.handleCalls);
+        Assertions.assertEquals(0, fakeVoice.handleCalls);
         Assertions.assertEquals(0, fakeCommands.handleCalls);
         Assertions.assertEquals(0, fakeFlow.showUseStartCalls);
+    }
+
+    /** Проверяет, что документ в состоянии WAITING_TEXT уходит в {@link DocumentHandler}. */
+    @Test
+    void documentGoesToDocumentHandlerWhenWaiting() {
+        Session session = sessions.get(chatId);
+        session.setState(Session.State.WAITING_TEXT);
+        session.setSource(Language.RU);
+        session.setTarget(Language.EN);
+
+        UserMessage msg = new UserMessage(chatId, "doc-1", "test.txt", 100L);
+        router.handleMessage(msg);
+
+        Assertions.assertEquals(1, fakeDocuments.handleCalls);
+        Assertions.assertEquals(0, fakeText.handleCalls);
+        Assertions.assertEquals(0, fakeVoice.handleCalls);
+    }
+
+    /** Проверяет, что голосовое сообщение уходит в {@link VoiceHandler}. */
+    @Test
+    void voiceGoesToVoiceHandlerWhenWaiting() {
+        Session session = sessions.get(chatId);
+        session.setState(Session.State.WAITING_TEXT);
+        session.setSource(Language.RU);
+        session.setTarget(Language.EN);
+
+        UserMessage msg = new UserMessage(chatId, "voice-1", 5);
+        router.handleMessage(msg);
+
+        Assertions.assertEquals(1, fakeVoice.handleCalls);
+        Assertions.assertEquals(0, fakeText.handleCalls);
+        Assertions.assertEquals(0, fakeDocuments.handleCalls);
     }
 
     /** Проверяет, что материал без выбранных языков перенаправляется на выбор языка. */
@@ -106,7 +142,7 @@ class RouterTest {
         router.handleMessage(msg);
 
         Assertions.assertEquals(1, fakeFlow.startSourceChoiceCalls);
-        Assertions.assertEquals(0, fakeMaterialHandler.handleCalls);
+        Assertions.assertEquals(0, fakeText.handleCalls);
     }
 
     /** Проверяет, что текст вне сценария (IDLE) показывает подсказку через {@link DialogFlow}. */
@@ -118,31 +154,7 @@ class RouterTest {
 
         Assertions.assertEquals(1, fakeFlow.showUseStartCalls);
         Assertions.assertEquals(0, fakeCommands.handleCalls);
-        Assertions.assertEquals(0, fakeMaterialHandler.handleCalls);
-    }
-
-    /** Проверяет, что если обработчик для типа не найден, вызывается {@link DialogFlow#showUnsupportedMaterial}. */
-    @Test
-    void unsupportedMaterialGoesToFlow() {
-        Session session = sessions.get(chatId);
-        session.setState(Session.State.WAITING_TEXT);
-        session.setSource(Language.RU);
-        session.setTarget(Language.EN);
-        // Зарегистрирован только обработчик TEXT, а пришёл DOCUMENT
-
-        UserMessage msg = new UserMessage(chatId, "doc-1", "test.txt", 100L);
-        router.handleMessage(msg);
-
-        Assertions.assertEquals(1, fakeFlow.showUnsupportedMaterialCalls);
-        Assertions.assertEquals(0, fakeMaterialHandler.handleCalls);
-    }
-
-    /** Проверяет, что два обработчика на один тип — ошибка конфигурации. */
-    @Test
-    void duplicateHandlerForSameTypeIsRejected() {
-        Assertions.assertThrows(IllegalArgumentException.class,
-                () -> new Router(sessions, fakeCommands, fakeCallbacks, fakeFlow,
-                        List.of(fakeMaterialHandler, new FakeMaterialHandler())));
+        Assertions.assertEquals(0, fakeText.handleCalls);
     }
 
     // ---------- Заглушки обработчиков ----------
@@ -181,7 +193,6 @@ class RouterTest {
     private static class FakeDialogFlow extends DialogFlow {
         int startSourceChoiceCalls;
         int showUseStartCalls;
-        int showUnsupportedMaterialCalls;
 
         FakeDialogFlow() {
             super(null, null);
@@ -196,21 +207,42 @@ class RouterTest {
         public void showUseStart(long chatId) {
             showUseStartCalls++;
         }
+    }
+
+    /** Заглушка {@link TextHandler}, считающая вызовы. */
+    private static class FakeTextHandler extends TextHandler {
+        int handleCalls;
+
+        FakeTextHandler() {
+            super(null, null, null, null);
+        }
 
         @Override
-        public void showUnsupportedMaterial(long chatId) {
-            showUnsupportedMaterialCalls++;
+        public void handle(UserMessage message, Session session) {
+            handleCalls++;
         }
     }
 
-    /** Заглушка {@link MaterialHandler} с управляемым типом. */
-    private static class FakeMaterialHandler implements MaterialHandler {
+    /** Заглушка {@link DocumentHandler}, считающая вызовы. */
+    private static class FakeDocumentHandler extends DocumentHandler {
         int handleCalls;
-        MessageType type = MessageType.TEXT;
+
+        FakeDocumentHandler() {
+            super(null, null, null, null);
+        }
 
         @Override
-        public MessageType type() {
-            return type;
+        public void handle(UserMessage message, Session session) {
+            handleCalls++;
+        }
+    }
+
+    /** Заглушка {@link VoiceHandler}, считающая вызовы. */
+    private static class FakeVoiceHandler extends VoiceHandler {
+        int handleCalls;
+
+        FakeVoiceHandler() {
+            super(null, null, null, null, null);
         }
 
         @Override

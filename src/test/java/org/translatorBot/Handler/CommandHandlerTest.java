@@ -5,7 +5,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.translatorBot.History.FakeHistoryService;
 import org.translatorBot.Model.AppKeyboard;
-import org.translatorBot.Sender.MessageSender;
+import org.translatorBot.Platforms.MessageSender;
 import org.translatorBot.Session.Session;
 import org.translatorBot.Ui;
 

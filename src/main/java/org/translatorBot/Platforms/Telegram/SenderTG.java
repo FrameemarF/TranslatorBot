@@ -1,4 +1,4 @@
-package org.translatorBot.Sender;
+package org.translatorBot.Platforms.Telegram;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,7 +10,9 @@ import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
 import org.translatorBot.Model.AppKeyboard;
-import org.translatorBot.Telegram.TelegramMapper;
+import org.translatorBot.Platforms.FileDownloadException;
+import org.translatorBot.Platforms.MessageSender;
+import org.translatorBot.Platforms.Telegram.TelegramMapper;
 
 import java.nio.file.Path;
 

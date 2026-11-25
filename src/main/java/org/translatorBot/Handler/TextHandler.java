@@ -8,7 +8,7 @@ import org.translatorBot.History.HistoryService;
 import org.translatorBot.History.TranslationRecord;
 import org.translatorBot.Model.MessageType;
 import org.translatorBot.Model.UserMessage;
-import org.translatorBot.Sender.MessageSender;
+import org.translatorBot.Platforms.MessageSender;
 import org.translatorBot.Session.Session;
 import org.translatorBot.Service.Translation.TranslationException;
 import org.translatorBot.Service.Translation.TranslationService;
@@ -24,7 +24,7 @@ import java.util.Optional;
  * с учетом выбранных в сессии языков и отправляет результат пользователю.
  * Успешный перевод сохраняется в историю.
  */
-public class TextHandler implements MaterialHandler {
+public class TextHandler {
     /** Логгер обработчика. */
     private final Logger log = LoggerFactory.getLogger(getClass());
 
@@ -53,12 +53,6 @@ public class TextHandler implements MaterialHandler {
         this.history = history;
     }
 
-    /** {@inheritDoc} */
-    @Override
-    public MessageType type() {
-        return MessageType.TEXT;
-    }
-
     /**
      * Обрабатывает текст: проверяет его, переводит и отправляет ответ.
      * При ошибке перевода отправляет сообщение об ошибке.
@@ -66,7 +60,6 @@ public class TextHandler implements MaterialHandler {
      * @param message входящее сообщение с текстом
      * @param session сессия пользователя с выбранными языками
      */
-    @Override
     public void handle(UserMessage message, Session session) {
         long chatId = message.chatId();
         String text = message.text().trim();

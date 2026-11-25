@@ -7,8 +7,8 @@ import org.translatorBot.History.HistoryService;
 import org.translatorBot.History.TranslationRecord;
 import org.translatorBot.Model.MessageType;
 import org.translatorBot.Model.UserMessage;
-import org.translatorBot.Sender.FileDownloadException;
-import org.translatorBot.Sender.MessageSender;
+import org.translatorBot.Platforms.FileDownloadException;
+import org.translatorBot.Platforms.MessageSender;
 import org.translatorBot.Session.Session;
 import org.translatorBot.Service.Translation.TranslationException;
 import org.translatorBot.Service.Translation.TranslationService;
@@ -28,7 +28,7 @@ import java.time.Instant;
  * в виде документа. Временные файлы удаляются после обработки,
  * а успешный перевод сохраняется в историю.
  */
-public class DocumentHandler implements MaterialHandler {
+public class DocumentHandler {
     /** Максимально допустимый размер загружаемого файла в байтах (5 МБ). */
     static final long MAX_FILE_BYTES = 5L * 1024 * 1024;
 
@@ -60,12 +60,6 @@ public class DocumentHandler implements MaterialHandler {
         this.history = history;
     }
 
-    /** {@inheritDoc} */
-    @Override
-    public MessageType type() {
-        return MessageType.DOCUMENT;
-    }
-
     /**
      * Обрабатывает файл: проверяет формат и размер, скачивает, переводит
      * и отправляет результат пользователю. При ошибках отправляет
@@ -74,7 +68,6 @@ public class DocumentHandler implements MaterialHandler {
      * @param message входящее сообщение с документом
      * @param session сессия пользователя с выбранными языками
      */
-    @Override
     public void handle(UserMessage message, Session session) {
         long chatId = message.chatId();
         String name = message.fileName();

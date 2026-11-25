@@ -8,8 +8,8 @@ import org.translatorBot.History.HistoryService;
 import org.translatorBot.History.TranslationRecord;
 import org.translatorBot.Model.MessageType;
 import org.translatorBot.Model.UserMessage;
-import org.translatorBot.Sender.FileDownloadException;
-import org.translatorBot.Sender.MessageSender;
+import org.translatorBot.Platforms.FileDownloadException;
+import org.translatorBot.Platforms.MessageSender;
 import org.translatorBot.Session.Session;
 import org.translatorBot.Service.Speech.SpeechRecognitionException;
 import org.translatorBot.Service.Speech.SpeechRecognitionService;
@@ -30,10 +30,8 @@ import java.util.Optional;
  * <p>Выполняет цепочку «скачать → распознать → перевести → ответить текстом».
  * Слишком длинные голосовые сообщения (более {@value #MAX_DURATION_SECONDS} секунд)
  * отклоняются без обработки. Успешный перевод сохраняется в историю.
- *
- * @see MaterialHandler
  */
-public class VoiceHandler implements MaterialHandler {
+public class VoiceHandler {
     /** Максимально допустимая длительность голосового сообщения в секундах. */
     static final int MAX_DURATION_SECONDS = 30;
 
@@ -69,12 +67,6 @@ public class VoiceHandler implements MaterialHandler {
         this.history = history;
     }
 
-    /** {@inheritDoc} */
-    @Override
-    public MessageType type() {
-        return MessageType.VOICE;
-    }
-
     /**
      * Обрабатывает голосовое сообщение: проверяет длительность, распознаёт речь,
      * проверяет совпадение языка, переводит результат на целевой язык сессии
@@ -88,7 +80,6 @@ public class VoiceHandler implements MaterialHandler {
      * @param message входящее сообщение с голосовым вложением
      * @param session текущая сессия пользователя (источник и целевой язык)
      */
-    @Override
     public void handle(UserMessage message, Session session) {
         long chatId = message.chatId();
         Integer duration = message.voiceDuration();

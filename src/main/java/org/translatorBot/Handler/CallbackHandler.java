@@ -3,7 +3,7 @@ package org.translatorBot.Handler;
 import org.translatorBot.Language;
 import org.translatorBot.LanguageCatalog;
 import org.translatorBot.Model.UserCallback;
-import org.translatorBot.Sender.MessageSender;
+import org.translatorBot.Platforms.MessageSender;
 import org.translatorBot.Session.Session;
 import org.translatorBot.Session.SessionStore;
 import org.translatorBot.Ui;

@@ -10,7 +10,7 @@ import org.translatorBot.Language;
 import org.translatorBot.Model.AppKeyboard;
 import org.translatorBot.Model.MessageType;
 import org.translatorBot.Model.UserMessage;
-import org.translatorBot.Sender.MessageSender;
+import org.translatorBot.Platforms.MessageSender;
 import org.translatorBot.Service.Speech.SpeechRecognitionService;
 import org.translatorBot.Service.Speech.SpeechUnavailableException;
 import org.translatorBot.Service.Speech.SpeechUnrecognizedException;
@@ -58,11 +58,6 @@ class VoiceHandlerTest {
 
     private UserMessage voiceMessage(int duration) {
         return new UserMessage(chatId, fileId, duration);
-    }
-
-    @Test
-    void handlesVoiceMessages() {
-        Assertions.assertEquals(MessageType.VOICE, handler.type());
     }
 
     @Test

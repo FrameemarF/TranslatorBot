@@ -2,7 +2,6 @@ package org.translatorBot.Model;
 
 /**
  * Универсальное входящее сообщение пользователя, независимое от платформы.
- * Содержит только те данные, которые необходимы для работы хендлеров.
  *
  * @param chatId        идентификатор чата (куда отправлять ответ)
  * @param accountId     идентификатор аккаунта пользователя (сессия и история)
@@ -12,6 +11,7 @@ package org.translatorBot.Model;
  * @param fileName      имя файла (используется, если type = DOCUMENT)
  * @param fileSize      размер файла в байтах (используется, если type = DOCUMENT)
  * @param voiceDuration длительность голосового в секундах (используется, если type = VOICE)
+ * @param userName      имя пользователя на платформе или {@code null}
  */
 public record UserMessage(
         long chatId,
@@ -21,7 +21,8 @@ public record UserMessage(
         String fileId,
         String fileName,
         Long fileSize,
-        Integer voiceDuration
+        Integer voiceDuration,
+        String userName
 ) {
     /**
      * Создает текстовое сообщение, где аккаунт совпадает с чатом.
@@ -41,7 +42,7 @@ public record UserMessage(
      * @param text      текст сообщения
      */
     public UserMessage(long chatId, long accountId, String text) {
-        this(chatId, accountId, MessageType.TEXT, text, null, null, null, null);
+        this(chatId, accountId, MessageType.TEXT, text, null, null, null, null, null);
     }
 
     /**
@@ -67,7 +68,7 @@ public record UserMessage(
      */
     public UserMessage(long chatId, long accountId, String fileId,
                        String fileName, Long fileSize) {
-        this(chatId, accountId, MessageType.DOCUMENT, null, fileId, fileName, fileSize, null);
+        this(chatId, accountId, MessageType.DOCUMENT, null, fileId, fileName, fileSize, null, null);
     }
 
     /**
@@ -90,6 +91,17 @@ public record UserMessage(
      * @param voiceDuration длительность голосового сообщения
      */
     public UserMessage(long chatId, long accountId, String fileId, Integer voiceDuration) {
-        this(chatId, accountId, MessageType.VOICE, null, fileId, null, null, voiceDuration);
+        this(chatId, accountId, MessageType.VOICE, null, fileId, null, null, voiceDuration, null);
+    }
+
+    /**
+     * Возвращает копию сообщения с именем пользователя.
+     *
+     * @param name имя пользователя
+     * @return сообщение с заполненным именем
+     */
+    public UserMessage withUserName(String name) {
+        return new UserMessage(chatId, accountId, type, text, fileId, fileName,
+                fileSize, voiceDuration, name);
     }
 }
