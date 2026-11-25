@@ -8,8 +8,8 @@ import java.util.Properties;
  * Корневая конфигурация приложения.
  * <p>
  * Файл {@code application.properties} читается один раз здесь, а компоненты
- * получают только свою часть настроек: Telegram, Discord, база, перевод
- * и распознавание речи. Благодаря этому, например, Discord-боту
+ * получают только свою часть настроек: Telegram, Discord, база, перевод,
+ * распознавание речи и озвучка. Благодаря этому, например, Discord-боту
  * не передаются данные для подключения к базе данных.
  */
 public class BotConfig {
@@ -23,6 +23,8 @@ public class BotConfig {
     private final TranslationConfig translation;
     /** Настройки распознавания речи. */
     private final SpeechConfig speech;
+    /** Настройки озвучки. */
+    private final TtsConfig tts;
 
     /**
      * Загружает конфигурацию из {@code application.properties} и переменных
@@ -61,6 +63,9 @@ public class BotConfig {
                         "whisper-large-v3-turbo"),
                 firstNonBlank(System.getenv("WHISPER_URL"), props.getProperty("whisper.url"),
                         "http://localhost:9000"));
+        this.tts = new TtsConfig(firstNonBlank(
+                System.getenv("TTS_URL"), props.getProperty("tts.url"),
+                "http://localhost:5050"));
     }
 
     /**
@@ -119,5 +124,10 @@ public class BotConfig {
     /** @return настройки распознавания речи */
     public SpeechConfig speech() {
         return speech;
+    }
+
+    /** @return настройки озвучки */
+    public TtsConfig tts() {
+        return tts;
     }
 }

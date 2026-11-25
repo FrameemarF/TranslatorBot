@@ -191,6 +191,9 @@ class VoiceHandlerTest {
         @Override
         public void sendDocument(long chatId, String fileName, Path content,
                                  String caption, AppKeyboard keyboard) {}
+
+        @Override
+        public void sendVoice(long chatId, byte[] audio, String fileName) {}
     }
 
     private static class FakeSpeech implements SpeechRecognitionService {

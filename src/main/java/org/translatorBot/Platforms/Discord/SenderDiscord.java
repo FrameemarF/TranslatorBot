@@ -140,6 +140,17 @@ public class SenderDiscord implements MessageSender {
                 log.error("Failed to send document to Discord channel {}", chatId, error));
     }
 
+    /** {@inheritDoc} */
+    @Override
+    public void sendVoice(long chatId, byte[] audio, String fileName) {
+        MessageChannel channel = channel(chatId);
+        if (channel == null) {
+            return;
+        }
+        channel.sendFiles(FileUpload.fromData(audio, fileName)).queue(null, error ->
+                log.error("Failed to send voice to Discord channel {}", chatId, error));
+    }
+
     /**
      * Находит текстовый канал по идентификатору.
      *

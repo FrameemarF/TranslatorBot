@@ -221,6 +221,7 @@ class CallbackHandlerTest {
         @Override public void send(long chatId, String text, AppKeyboard keyboard) {}
         @Override public Path download(String fileId) { return null; }
         @Override public void sendDocument(long chatId, String fileName, Path content, String caption, AppKeyboard keyboard) {}
+        @Override public void sendVoice(long chatId, byte[] audio, String fileName) {}
     }
 
     private static class FakeDialogFlow extends DialogFlow {

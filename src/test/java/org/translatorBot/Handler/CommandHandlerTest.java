@@ -176,6 +176,7 @@ class CommandHandlerTest {
         @Override public void ackCallback(String callbackId) {}
         @Override public Path download(String fileId) { return null; }
         @Override public void sendDocument(long chatId, String fileName, Path content, String caption, AppKeyboard keyboard) {}
+        @Override public void sendVoice(long chatId, byte[] audio, String fileName) {}
     }
 
     /** Заглушка {@link DialogFlow}, запоминающая вызовы методов. */
