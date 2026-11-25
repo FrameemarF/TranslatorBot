@@ -10,7 +10,10 @@ import org.translatorBot.Handler.CommandHandler;
 import org.translatorBot.Handler.DialogFlow;
 import org.translatorBot.Handler.DocumentHandler;
 import org.translatorBot.Handler.HistoryHandler;
+import org.translatorBot.Handler.ProfileHandler;
 import org.translatorBot.Handler.Router;
+import org.translatorBot.Handler.SettingsHandler;
+import org.translatorBot.Handler.StatsHandler;
 import org.translatorBot.Handler.TextHandler;
 import org.translatorBot.Handler.VoiceHandler;
 import org.translatorBot.History.HistoryService;
@@ -29,22 +32,30 @@ import org.translatorBot.Service.Translation.LibreTranslateService;
 import org.translatorBot.Service.Translation.TranslationService;
 import org.translatorBot.Session.InMemorySessionStore;
 import org.translatorBot.Session.SessionStore;
+import org.translatorBot.Stats.JdbcStatisticsService;
+import org.translatorBot.Stats.StatisticsService;
+import org.translatorBot.User.JdbcUserService;
+import org.translatorBot.User.UserService;
 
 import java.util.concurrent.CountDownLatch;
 
 /**
  * Точка сборки приложения (composition root).
  * <p>
- * Здесь один раз создаются общие сервисы — база, перевод, распознавание речи
- * и тексты интерфейса — и передаются в боты платформ через конструкторы.
- * Сами боты живут в {@link TelegramBot} и {@link DiscordBot}.
+ * Здесь один раз создаются общие сервисы — база, история, профили, статистика,
+ * перевод и распознавание речи — и передаются в боты платформ через
+ * конструкторы. Сами боты живут в {@link TelegramBot} и {@link DiscordBot}.
  */
 public class BotApplication {
     /** Логгер приложения. */
     private final Logger log = LoggerFactory.getLogger(getClass());
 
-    /** Общий доступ к базе данных. */
-    private JdbcDatabase database;
+    /** Общая история переводов. */
+    private HistoryService history;
+    /** Общие профили пользователей. */
+    private UserService users;
+    /** Общая статистика. */
+    private StatisticsService statistics;
     /** Общий сервис перевода. */
     private TranslationService translator;
     /** Общий сервис распознавания речи. */
@@ -111,7 +122,10 @@ public class BotApplication {
      * @param config корневая конфигурация
      */
     private void initServices(BotConfig config) {
-        database = new JdbcDatabase(config.database());
+        JdbcDatabase database = new JdbcDatabase(config.database());
+        history = new JdbcHistoryService(database);
+        users = new JdbcUserService(database);
+        statistics = new JdbcStatisticsService(database);
         translator = new LibreTranslateService(config.translation().url());
         speech = buildSpeech(config.speech());
         ui = new Ui();
@@ -126,18 +140,23 @@ public class BotApplication {
      */
     private Router buildRouter(MessageSender sender, Platform platform) {
         SessionStore sessions = new InMemorySessionStore();
-        HistoryService history = new JdbcHistoryService(database, platform);
 
         DialogFlow flow = new DialogFlow(sender, ui);
-        HistoryHandler historyHandler = new HistoryHandler(sender, history, ui);
+        HistoryHandler historyHandler = new HistoryHandler(sender, history, users, ui, platform);
+        ProfileHandler profileHandler = new ProfileHandler(sender, users, statistics, ui, platform);
+        SettingsHandler settingsHandler = new SettingsHandler(sender, users, ui, platform);
+        StatsHandler statsHandler = new StatsHandler(sender, statistics, ui);
 
-        CommandHandler commands = new CommandHandler(flow, historyHandler);
-        CallbackHandler callbacks = new CallbackHandler(sender, sessions, flow, historyHandler);
+        CommandHandler commands = new CommandHandler(flow, historyHandler, profileHandler,
+                settingsHandler, statsHandler, users, platform);
+        CallbackHandler callbacks = new CallbackHandler(sender, sessions, flow, historyHandler,
+                profileHandler, settingsHandler, statsHandler, users, platform);
 
         return new Router(sessions, commands, callbacks, flow,
-                new TextHandler(sender, translator, ui, history),
-                new DocumentHandler(sender, translator, ui, history),
-                new VoiceHandler(sender, speech, translator, ui, history));
+                new TextHandler(sender, translator, ui, history, platform),
+                new DocumentHandler(sender, translator, ui, history, platform),
+                new VoiceHandler(sender, speech, translator, ui, history, platform),
+                platform, users);
     }
 
     /**

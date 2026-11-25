@@ -5,6 +5,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.translatorBot.History.FakeHistoryService;
+import org.translatorBot.History.Platform;
 import org.translatorBot.History.TranslationRecord;
 import org.translatorBot.Language;
 import org.translatorBot.Model.AppKeyboard;
@@ -46,7 +47,7 @@ class DocumentHandlerTest {
         translator = new FakeTranslator();
         history = new FakeHistoryService();
         ui = new Ui();
-        handler = new DocumentHandler(sender, translator, ui, history);
+        handler = new DocumentHandler(sender, translator, ui, history, Platform.TELEGRAM);
         session = new Session();
         session.setSource(Language.RU);
         session.setTarget(Language.EN);

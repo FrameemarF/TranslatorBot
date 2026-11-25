@@ -76,8 +76,9 @@ public class DialogFlow {
     }
 
     /**
-     * Переводит сессию в состояние выбора языка-источника, сбрасывает
-     * ранее выбранные языки и предлагает пользователю выбор.
+     * Начинает перевод как обычно: пользователь выбирает оба языка.
+     * Используется кнопкой «Сменить язык», чтобы настройка языка-цели
+     * по умолчанию не менялась.
      *
      * @param chatId идентификатор чата
      * @param s      сессия пользователя
@@ -89,7 +90,23 @@ public class DialogFlow {
     }
 
     /**
-     * Сохраняет выбранный язык-источник и переводит сессию к выбору языка-цели.
+     * Начинает перевод с языком-целью из настроек: если он задан, пользователь
+     * выбирает только язык-источник.
+     *
+     * @param chatId        идентификатор чата
+     * @param s             сессия пользователя
+     * @param defaultTarget язык-цель по умолчанию или {@code null}
+     */
+    public void startTranslation(long chatId, Session s, Language defaultTarget) {
+        s.reset();
+        s.setTarget(defaultTarget);
+        s.setState(Session.State.CHOOSING_SOURCE);
+        sender.send(chatId, ui.chooseSourceLang, ui.sourceChoice());
+    }
+
+    /**
+     * Сохраняет выбранный язык-источник. Если язык-цель уже задан настройками,
+     * шаг выбора цели пропускается.
      *
      * @param chatId идентификатор чата
      * @param s      сессия пользователя
@@ -97,6 +114,16 @@ public class DialogFlow {
      */
     public void pickSource(long chatId, Session s, Language source) {
         s.setSource(source);
+        if (s.getTarget() != null) {
+            if (s.getTarget() == source) {
+                s.setTarget(null);
+                s.setState(Session.State.CHOOSING_TARGET);
+                sender.send(chatId, ui.sameLanguages, ui.targetChoice());
+            } else {
+                askForText(chatId, s);
+            }
+            return;
+        }
         s.setState(Session.State.CHOOSING_TARGET);
         sender.send(chatId, ui.chooseTargetLang, ui.targetChoice());
     }

@@ -3,6 +3,7 @@ package org.translatorBot;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.translatorBot.Model.AppKeyboard;
+import org.translatorBot.User.ResponseMode;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -39,10 +40,22 @@ class UiTest {
         return result;
     }
 
-    /** Главное меню содержит кнопки «Перевести», «История» и «Помощь». */
+    /** Главное меню содержит все действия этапа 5. */
     @Test
-    void mainMenuHasTranslateHistoryAndHelp() {
-        Assertions.assertEquals(List.of("TRANSLATE", "HISTORY", "HELP"), callbackData(ui.mainMenu()));
+    void mainMenuHasAllActions() {
+        Assertions.assertEquals(
+                List.of("TRANSLATE", "PROFILE", "SETTINGS", "STATS", "HISTORY", "HELP"),
+                callbackData(ui.mainMenu()));
+    }
+
+    /** В настройках есть выбор языка-цели, сброс и режим ответа. */
+    @Test
+    void settingsMenuHasTargetsAndModes() {
+        Assertions.assertEquals(
+                List.of("SET_TARGET_RU", "SET_TARGET_EN", "SET_TARGET_DE",
+                        "SET_TARGET_FR", "SET_TARGET_ES", "SET_TARGET_NONE",
+                        "SET_MODE_TEXT", "SET_MODE_VOICE", "MENU"),
+                callbackData(ui.settingsMenu(Language.EN, ResponseMode.TEXT)));
     }
 
     /** Меню истории содержит кнопки «Очистить историю» и «В меню». */
@@ -55,23 +68,24 @@ class UiTest {
     @Test
     void historyMenuHasBothNavigationButtons() {
         Assertions.assertEquals(
-                List.of("HISTORY_PAGE_0_42", "HISTORY_PAGE_2_42", "CLEAR_HISTORY", "MENU"),
+                List.of("HISTORY_PAGE_0_42", "HISTORY_PAGE_1_42",
+                        "HISTORY_PAGE_2_42", "CLEAR_HISTORY", "MENU"),
                 callbackData(ui.historyMenu(1, true, true, 42)));
     }
 
-    /** На первой странице нельзя перейти к более новым записям. */
+    /** На первой странице есть текущая страница и переход к более старым записям. */
     @Test
-    void firstHistoryPageHasOnlyOlderButton() {
+    void firstHistoryPageHasCurrentAndOlderButtons() {
         Assertions.assertEquals(
-                List.of("HISTORY_PAGE_1_42", "CLEAR_HISTORY", "MENU"),
+                List.of("HISTORY_PAGE_0_42", "HISTORY_PAGE_1_42", "CLEAR_HISTORY", "MENU"),
                 callbackData(ui.historyMenu(0, false, true, 42)));
     }
 
-    /** На последней странице нельзя перейти к более старым записям. */
+    /** На последней странице есть текущая страница и переход к более новым записям. */
     @Test
-    void lastHistoryPageHasOnlyNewerButton() {
+    void lastHistoryPageHasCurrentAndNewerButtons() {
         Assertions.assertEquals(
-                List.of("HISTORY_PAGE_1_42", "CLEAR_HISTORY", "MENU"),
+                List.of("HISTORY_PAGE_1_42", "HISTORY_PAGE_2_42", "CLEAR_HISTORY", "MENU"),
                 callbackData(ui.historyMenu(2, true, false, 42)));
     }
 
@@ -110,7 +124,8 @@ class UiTest {
     void everyButtonIsValid() {
         List<AppKeyboard> keyboards = List.of(
                 ui.mainMenu(), ui.afterTranslation(), ui.sourceChoice(), ui.targetChoice(),
-                ui.historyMenu(), ui.emptyHistoryMenu());
+                ui.historyMenu(), ui.emptyHistoryMenu(),
+                ui.settingsMenu(Language.EN, ResponseMode.TEXT), ui.menuOnly());
 
         for (AppKeyboard k : keyboards) {
             for (String t : texts(k)) {

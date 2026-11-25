@@ -4,12 +4,16 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.translatorBot.History.FakeHistoryService;
+import org.translatorBot.History.Platform;
 import org.translatorBot.History.TranslationRecord;
 import org.translatorBot.Language;
 import org.translatorBot.Model.AppKeyboard;
 import org.translatorBot.Model.MessageType;
 import org.translatorBot.Platforms.MessageSender;
 import org.translatorBot.Ui;
+import org.translatorBot.User.FakeUserService;
+import org.translatorBot.User.ResponseMode;
+import org.translatorBot.User.UserProfile;
 
 import java.time.Instant;
 import java.util.List;
@@ -31,6 +35,8 @@ class HistoryHandlerTest {
     private RecordingSender sender;
     /** Заглушка хранилища истории. */
     private FakeHistoryService history;
+    /** Заглушка профилей пользователей. */
+    private FakeUserService users;
     /** Источник текстов интерфейса. */
     private Ui ui;
     /** Проверяемый обработчик. */
@@ -41,8 +47,11 @@ class HistoryHandlerTest {
         sender = new RecordingSender();
         history = new FakeHistoryService();
         history.newestId = 42;
+        users = new FakeUserService();
+        users.profile = new UserProfile("Илья", Instant.now(), Language.EN,
+                ResponseMode.TEXT, java.time.ZoneOffset.UTC);
         ui = new Ui();
-        handler = new HistoryHandler(sender, history, ui);
+        handler = new HistoryHandler(sender, history, users, ui, Platform.TELEGRAM);
     }
 
     /** Пустая история сопровождается подсказкой и клавиатурой. */
@@ -71,6 +80,7 @@ class HistoryHandlerTest {
         Assertions.assertTrue(sender.lastText.contains("Hello"));
         Assertions.assertTrue(sender.lastText.contains("Hallo"));
         Assertions.assertTrue(sender.lastText.contains("Bonjour"));
+        Assertions.assertTrue(sender.lastText.contains("01.01.2026 00:00"));
         Assertions.assertNotNull(sender.lastKeyboard);
     }
 
@@ -82,8 +92,8 @@ class HistoryHandlerTest {
         handler.show(chatId, accountId);
 
         List<String> callbacks = callbacks(sender.lastKeyboard);
+        Assertions.assertTrue(callbacks.contains("HISTORY_PAGE_0_42"));
         Assertions.assertTrue(callbacks.contains("HISTORY_PAGE_1_42"));
-        Assertions.assertFalse(callbacks.contains("HISTORY_PAGE_0_42"));
         Assertions.assertTrue(sender.lastText.contains("10. "));
         Assertions.assertFalse(sender.lastText.contains("11. "));
     }

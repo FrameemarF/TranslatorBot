@@ -22,7 +22,8 @@ import java.util.List;
 public class DatabaseMigrator {
     /** Порядок миграций: номер версии и файл в classpath. */
     private static final List<Migration> MIGRATIONS = List.of(
-            new Migration(1, "db/migration/V1__translations.sql"));
+            new Migration(1, "db/migration/V1__translations.sql"),
+            new Migration(2, "db/migration/V2__users.sql"));
 
     /** SQL создания таблицы учёта миграций. */
     private static final String CREATE_VERSIONS =

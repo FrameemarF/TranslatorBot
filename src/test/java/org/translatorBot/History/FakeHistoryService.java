@@ -2,6 +2,7 @@ package org.translatorBot.History;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Тестовая заглушка {@link HistoryService}: запоминает вызовы, хранит записи
@@ -14,6 +15,8 @@ public class FakeHistoryService implements HistoryService {
     public int recentCalls;
     /** Количество вызовов {@link #clear}. */
     public int clearCalls;
+    /** Платформа, переданная в последний вызов. */
+    public Platform lastPlatform;
     /** Идентификатор аккаунта, переданный в последний вызов. */
     public long lastAccountId;
     /** Лимит, переданный в последний вызов {@link #recent}. */
@@ -34,53 +37,57 @@ public class FakeHistoryService implements HistoryService {
 
     /** {@inheritDoc} */
     @Override
-    public void save(long accountId, TranslationRecord record) {
+    public boolean save(Platform platform, long accountId, TranslationRecord record) {
         saveCalls++;
+        lastPlatform = platform;
         lastAccountId = accountId;
         if (fail) {
-            throw new HistoryException("history unavailable", null);
+            return false;
         }
         lastSaved = record;
         records.add(0, record);
+        return true;
     }
 
     /** {@inheritDoc} */
     @Override
-    public long latestId(long accountId) {
+    public Optional<Long> latestId(Platform platform, long accountId) {
+        lastPlatform = platform;
         lastAccountId = accountId;
-        if (fail) {
-            throw new HistoryException("history unavailable", null);
-        }
-        return newestId;
+        return fail ? Optional.empty() : Optional.of(newestId);
     }
 
     /** {@inheritDoc} */
     @Override
-    public List<TranslationRecord> recent(long accountId, int limit, int offset, long maxId) {
+    public Optional<List<TranslationRecord>> recent(Platform platform, long accountId,
+                                                    int limit, int offset, long maxId) {
         recentCalls++;
+        lastPlatform = platform;
         lastAccountId = accountId;
         lastLimit = limit;
         lastOffset = offset;
         lastMaxId = maxId;
         if (fail) {
-            throw new HistoryException("history unavailable", null);
+            return Optional.empty();
         }
         int from = Math.max(0, offset);
         if (from >= records.size()) {
-            return new ArrayList<>();
+            return Optional.of(new ArrayList<>());
         }
         int to = Math.min(from + limit, records.size());
-        return new ArrayList<>(records.subList(from, to));
+        return Optional.of(new ArrayList<>(records.subList(from, to)));
     }
 
     /** {@inheritDoc} */
     @Override
-    public void clear(long accountId) {
+    public boolean clear(Platform platform, long accountId) {
         clearCalls++;
+        lastPlatform = platform;
         lastAccountId = accountId;
         if (fail) {
-            throw new HistoryException("history unavailable", null);
+            return false;
         }
         records.clear();
+        return true;
     }
 }

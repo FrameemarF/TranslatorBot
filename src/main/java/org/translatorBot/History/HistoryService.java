@@ -1,76 +1,82 @@
 package org.translatorBot.History;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
- * Хранилище истории переводов пользователей. Реализация может быть основана
- * на базе данных; интерфейс скрывает от обработчиков детали хранения.
+ * Хранилище истории переводов пользователей.
+ * <p>
+ * Ошибки базы данных не выбрасываются наружу: методы возвращают
+ * {@link Optional#empty()} или {@code false}, чтобы обработчики могли показать
+ * пользователю понятное сообщение и не прерывать работу бота.
  */
 public interface HistoryService {
 
     /**
      * Сохраняет перевод пользователя.
      *
-     * @param accountId идентификатор аккаунта пользователя
+     * @param platform  платформа пользователя
+     * @param accountId идентификатор аккаунта
      * @param record    сохраняемая запись
-     * @throws HistoryException если база данных недоступна или запрос не выполнен
+     * @return {@code true}, если запись сохранена
      */
-    void save(long accountId, TranslationRecord record);
+    boolean save(Platform platform, long accountId, TranslationRecord record);
 
     /**
-     * Возвращает идентификатор самой новой записи пользователя.
-     * Используется как «граница снимка»: страницы истории не сдвигаются,
-     * если во время просмотра добавляются новые переводы.
+     * Возвращает идентификатор самой новой записи пользователя. Служит верхней
+     * границей снимка, чтобы уже открытые страницы истории не сдвигались.
      *
-     * @param accountId идентификатор аккаунта пользователя
-     * @return идентификатор последней записи или {@code 0}, если история пуста
-     * @throws HistoryException если база данных недоступна или запрос не выполнен
+     * @param platform  платформа пользователя
+     * @param accountId идентификатор аккаунта
+     * @return идентификатор последней записи или {@link Optional#empty()} при ошибке
      */
-    long latestId(long accountId);
+    Optional<Long> latestId(Platform platform, long accountId);
 
     /**
-     * Возвращает страницу переводов пользователя от новых к старым
-     * в пределах снимка истории.
+     * Возвращает страницу переводов от новых к старым.
      *
-     * @param accountId идентификатор аккаунта пользователя
-     * @param limit     максимальное количество записей на странице
-     * @param offset    количество записей, которые нужно пропустить
-     * @param maxId     верхняя граница снимка: записи с большим id не попадут на страницу
-     * @return список переводов; пустой, если история ещё не накопилась
-     * @throws HistoryException если база данных недоступна или запрос не выполнен
+     * @param platform  платформа пользователя
+     * @param accountId идентификатор аккаунта
+     * @param limit     размер страницы
+     * @param offset    сколько записей пропустить
+     * @param maxId     верхняя граница снимка
+     * @return записи страницы или {@link Optional#empty()} при ошибке
      */
-    List<TranslationRecord> recent(long accountId, int limit, int offset, long maxId);
+    Optional<List<TranslationRecord>> recent(Platform platform, long accountId,
+                                             int limit, int offset, long maxId);
 
     /**
-     * Возвращает страницу переводов пользователя от новых к старым.
+     * Возвращает страницу переводов без ограничения снимка.
      *
-     * @param accountId идентификатор аккаунта пользователя
-     * @param limit     максимальное количество записей на странице
-     * @param offset    количество записей, которые нужно пропустить
-     * @return список переводов; пустой, если история ещё не накопилась
-     * @throws HistoryException если база данных недоступна или запрос не выполнен
+     * @param platform  платформа пользователя
+     * @param accountId идентификатор аккаунта
+     * @param limit     размер страницы
+     * @param offset    сколько записей пропустить
+     * @return записи страницы или {@link Optional#empty()} при ошибке
      */
-    default List<TranslationRecord> recent(long accountId, int limit, int offset) {
-        return recent(accountId, limit, offset, Long.MAX_VALUE);
+    default Optional<List<TranslationRecord>> recent(Platform platform, long accountId,
+                                                     int limit, int offset) {
+        return recent(platform, accountId, limit, offset, Long.MAX_VALUE);
     }
 
     /**
-     * Возвращает последние переводы пользователя от новых к старым.
+     * Возвращает последние переводы пользователя.
      *
-     * @param accountId идентификатор аккаунта пользователя
+     * @param platform  платформа пользователя
+     * @param accountId идентификатор аккаунта
      * @param limit     максимальное количество записей
-     * @return список переводов; пустой, если история ещё не накопилась
-     * @throws HistoryException если база данных недоступна или запрос не выполнен
+     * @return записи или {@link Optional#empty()} при ошибке
      */
-    default List<TranslationRecord> recent(long accountId, int limit) {
-        return recent(accountId, limit, 0);
+    default Optional<List<TranslationRecord>> recent(Platform platform, long accountId, int limit) {
+        return recent(platform, accountId, limit, 0);
     }
 
     /**
-     * Удаляет всю историю переводов пользователя.
+     * Удаляет всю историю пользователя.
      *
-     * @param accountId идентификатор аккаунта пользователя
-     * @throws HistoryException если база данных недоступна или запрос не выполнен
+     * @param platform  платформа пользователя
+     * @param accountId идентификатор аккаунта
+     * @return {@code true}, если история очищена
      */
-    void clear(long accountId);
+    boolean clear(Platform platform, long accountId);
 }
