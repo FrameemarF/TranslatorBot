@@ -5,7 +5,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.translatorBot.Language;
 import org.translatorBot.Model.AppKeyboard;
-import org.translatorBot.Sender.MessageSender;
+import org.translatorBot.Platforms.MessageSender;
 import org.translatorBot.Session.Session;
 import org.translatorBot.Ui;
 
@@ -69,6 +69,14 @@ class DialogFlowTest {
         flow.startSourceChoice(chatId, session);
         Assertions.assertEquals(Session.State.CHOOSING_SOURCE, session.getState());
         Assertions.assertNotNull(sender.lastKeyboard);
+    }
+
+    @Test
+    void startTranslationUsesDefaultTarget() {
+        session.setTarget(Language.DE);
+        flow.startTranslation(chatId, session, Language.EN);
+        Assertions.assertEquals(Language.EN, session.getTarget());
+        Assertions.assertEquals(Session.State.CHOOSING_SOURCE, session.getState());
     }
 
     @Test
@@ -146,5 +154,6 @@ class DialogFlowTest {
         @Override public void ackCallback(String callbackId) {}
         @Override public java.nio.file.Path download(String fileId) { return null; }
         @Override public void sendDocument(long chatId, String fileName, java.nio.file.Path content, String caption, AppKeyboard keyboard) {}
+        @Override public void sendVoice(long chatId, byte[] audio, String fileName) {}
     }
 }

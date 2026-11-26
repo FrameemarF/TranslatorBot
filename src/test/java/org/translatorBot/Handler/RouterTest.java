@@ -3,22 +3,21 @@ package org.translatorBot.Handler;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.translatorBot.History.Platform;
 import org.translatorBot.Language;
-import org.translatorBot.Model.MessageType;
 import org.translatorBot.Model.UserCallback;
 import org.translatorBot.Model.UserMessage;
 import org.translatorBot.Session.InMemorySessionStore;
 import org.translatorBot.Session.Session;
 import org.translatorBot.Session.SessionStore;
-
-import java.util.List;
+import org.translatorBot.User.FakeUserService;
 
 /**
  * Модульные тесты для {@link Router}.
  * <p>
  * Проверяют только маршрутизацию: что {@link Router} вызывает нужный метод
- * у нужного обработчика в зависимости от типа входящей модели и состояния сессии.
- * Никаких зависимостей от Telegram API (Update, Message) здесь нет.
+ * у нужного обработчика в зависимости от типа входящей модели и состояния
+ * сессии, а также регистрирует пользователя.
  */
 class RouterTest {
     private final long chatId = 100L;
@@ -27,122 +26,126 @@ class RouterTest {
     private FakeCommandHandler fakeCommands;
     private FakeCallbackHandler fakeCallbacks;
     private FakeDialogFlow fakeFlow;
-    private FakeMaterialHandler fakeMaterialHandler;
+    private FakeTextHandler fakeText;
+    private FakeDocumentHandler fakeDocuments;
+    private FakeVoiceHandler fakeVoice;
+    private FakeUserService users;
 
     private Router router;
 
-    /**
-     * Настраивает заглушки обработчиков и создаёт {@link Router} перед каждым тестом.
-     */
+    /** Настраивает заглушки обработчиков и создаёт {@link Router} перед каждым тестом. */
     @BeforeEach
     void setUp() {
         sessions = new InMemorySessionStore();
         fakeCommands = new FakeCommandHandler();
         fakeCallbacks = new FakeCallbackHandler();
         fakeFlow = new FakeDialogFlow();
-        fakeMaterialHandler = new FakeMaterialHandler();
+        fakeText = new FakeTextHandler();
+        fakeDocuments = new FakeDocumentHandler();
+        fakeVoice = new FakeVoiceHandler();
+        users = new FakeUserService();
 
         router = new Router(sessions, fakeCommands, fakeCallbacks, fakeFlow,
-                List.of(fakeMaterialHandler));
+                fakeText, fakeDocuments, fakeVoice, Platform.TELEGRAM, users);
     }
 
-    // ---------- тесты маршрутизации ----------
-
-    /** Проверяет, что сообщение с командой уходит в {@link CommandHandler}. */
+    /** Сообщение с командой уходит в {@link CommandHandler}. */
     @Test
     void commandGoesToCommandHandler() {
-        UserMessage msg = new UserMessage(chatId, "/start");
-        router.handleMessage(msg);
+        router.handleMessage(new UserMessage(chatId, "/start"));
 
         Assertions.assertEquals(1, fakeCommands.handleCalls);
         Assertions.assertEquals(0, fakeCallbacks.handleCalls);
-        Assertions.assertEquals(0, fakeMaterialHandler.handleCalls);
+        Assertions.assertEquals(0, fakeText.handleCalls);
     }
 
-    /** Проверяет, что в команду передаётся идентификатор аккаунта пользователя. */
+    /** В команду передаётся идентификатор аккаунта пользователя. */
     @Test
     void commandReceivesAccountId() {
-        UserMessage msg = new UserMessage(chatId, 777L, "/history");
-        router.handleMessage(msg);
+        router.handleMessage(new UserMessage(chatId, 777L, "/history"));
 
         Assertions.assertEquals(777L, fakeCommands.lastAccountId);
     }
 
-    /** Проверяет, что callback-запрос уходит в {@link CallbackHandler}. */
+    /** Каждое входящее сообщение регистрирует пользователя. */
+    @Test
+    void messageRegistersUser() {
+        router.handleMessage(new UserMessage(chatId, 777L, "/start").withUserName("Илья"));
+
+        Assertions.assertEquals(1, users.touchCalls);
+    }
+
+    /** Callback-запрос уходит в {@link CallbackHandler}. */
     @Test
     void callbackGoesToCallbackHandler() {
-        UserCallback callback = new UserCallback(chatId, "cb-1", "TRANSLATE");
-        router.handleCallback(callback);
+        router.handleCallback(new UserCallback(chatId, "cb-1", "TRANSLATE"));
 
         Assertions.assertEquals(1, fakeCallbacks.handleCalls);
         Assertions.assertEquals(0, fakeCommands.handleCalls);
-        Assertions.assertEquals(0, fakeMaterialHandler.handleCalls);
     }
 
-    /** Проверяет, что материал в состоянии WAITING_TEXT уходит в {@link MaterialHandler}. */
+    /** Текст в состоянии WAITING_TEXT уходит в {@link TextHandler}. */
     @Test
-    void materialGoesToMaterialHandlerWhenWaiting() {
+    void textGoesToTextHandlerWhenWaiting() {
         Session session = sessions.get(chatId);
         session.setState(Session.State.WAITING_TEXT);
         session.setSource(Language.RU);
         session.setTarget(Language.EN);
 
-        UserMessage msg = new UserMessage(chatId, "Привет");
-        router.handleMessage(msg);
+        router.handleMessage(new UserMessage(chatId, "Привет"));
 
-        Assertions.assertEquals(1, fakeMaterialHandler.handleCalls);
+        Assertions.assertEquals(1, fakeText.handleCalls);
         Assertions.assertEquals(0, fakeCommands.handleCalls);
         Assertions.assertEquals(0, fakeFlow.showUseStartCalls);
     }
 
-    /** Проверяет, что материал без выбранных языков перенаправляется на выбор языка. */
+    /** Файл в состоянии WAITING_TEXT уходит в {@link DocumentHandler}. */
     @Test
-    void materialWithoutLanguagesGoesToStartSourceChoice() {
-        Session session = sessions.get(chatId);
-        session.setState(Session.State.WAITING_TEXT);
-        // source и target не заданы
-
-        UserMessage msg = new UserMessage(chatId, "Привет");
-        router.handleMessage(msg);
-
-        Assertions.assertEquals(1, fakeFlow.startSourceChoiceCalls);
-        Assertions.assertEquals(0, fakeMaterialHandler.handleCalls);
-    }
-
-    /** Проверяет, что текст вне сценария (IDLE) показывает подсказку через {@link DialogFlow}. */
-    @Test
-    void textOutsideScenarioGoesToShowUseStart() {
-        // Сессия в IDLE по умолчанию
-        UserMessage msg = new UserMessage(chatId, "Просто текст");
-        router.handleMessage(msg);
-
-        Assertions.assertEquals(1, fakeFlow.showUseStartCalls);
-        Assertions.assertEquals(0, fakeCommands.handleCalls);
-        Assertions.assertEquals(0, fakeMaterialHandler.handleCalls);
-    }
-
-    /** Проверяет, что если обработчик для типа не найден, вызывается {@link DialogFlow#showUnsupportedMaterial}. */
-    @Test
-    void unsupportedMaterialGoesToFlow() {
+    void documentGoesToDocumentHandlerWhenWaiting() {
         Session session = sessions.get(chatId);
         session.setState(Session.State.WAITING_TEXT);
         session.setSource(Language.RU);
         session.setTarget(Language.EN);
-        // Зарегистрирован только обработчик TEXT, а пришёл DOCUMENT
 
-        UserMessage msg = new UserMessage(chatId, "doc-1", "test.txt", 100L);
-        router.handleMessage(msg);
+        router.handleMessage(new UserMessage(chatId, "doc-1", "test.txt", 100L));
 
-        Assertions.assertEquals(1, fakeFlow.showUnsupportedMaterialCalls);
-        Assertions.assertEquals(0, fakeMaterialHandler.handleCalls);
+        Assertions.assertEquals(1, fakeDocuments.handleCalls);
+        Assertions.assertEquals(0, fakeText.handleCalls);
     }
 
-    /** Проверяет, что два обработчика на один тип — ошибка конфигурации. */
+    /** Голосовое в состоянии WAITING_TEXT уходит в {@link VoiceHandler}. */
     @Test
-    void duplicateHandlerForSameTypeIsRejected() {
-        Assertions.assertThrows(IllegalArgumentException.class,
-                () -> new Router(sessions, fakeCommands, fakeCallbacks, fakeFlow,
-                        List.of(fakeMaterialHandler, new FakeMaterialHandler())));
+    void voiceGoesToVoiceHandlerWhenWaiting() {
+        Session session = sessions.get(chatId);
+        session.setState(Session.State.WAITING_TEXT);
+        session.setSource(Language.RU);
+        session.setTarget(Language.EN);
+
+        router.handleMessage(new UserMessage(chatId, "voice-1", 5));
+
+        Assertions.assertEquals(1, fakeVoice.handleCalls);
+        Assertions.assertEquals(0, fakeText.handleCalls);
+    }
+
+    /** Материал без выбранных языков перенаправляется на выбор языка. */
+    @Test
+    void materialWithoutLanguagesGoesToStartSourceChoice() {
+        sessions.get(chatId).setState(Session.State.WAITING_TEXT);
+
+        router.handleMessage(new UserMessage(chatId, "Привет"));
+
+        Assertions.assertEquals(1, fakeFlow.startSourceChoiceCalls);
+        Assertions.assertEquals(0, fakeText.handleCalls);
+    }
+
+    /** Текст вне сценария (IDLE) показывает подсказку через {@link DialogFlow}. */
+    @Test
+    void textOutsideScenarioGoesToShowUseStart() {
+        router.handleMessage(new UserMessage(chatId, "Просто текст"));
+
+        Assertions.assertEquals(1, fakeFlow.showUseStartCalls);
+        Assertions.assertEquals(0, fakeCommands.handleCalls);
+        Assertions.assertEquals(0, fakeText.handleCalls);
     }
 
     // ---------- Заглушки обработчиков ----------
@@ -153,7 +156,7 @@ class RouterTest {
         long lastAccountId;
 
         FakeCommandHandler() {
-            super(null, null);
+            super(null, null, null, null, null, null, null);
         }
 
         @Override
@@ -168,7 +171,7 @@ class RouterTest {
         int handleCalls;
 
         FakeCallbackHandler() {
-            super(null, null, null, null);
+            super(null, null, null, null, null, null, null, null, null);
         }
 
         @Override
@@ -181,7 +184,6 @@ class RouterTest {
     private static class FakeDialogFlow extends DialogFlow {
         int startSourceChoiceCalls;
         int showUseStartCalls;
-        int showUnsupportedMaterialCalls;
 
         FakeDialogFlow() {
             super(null, null);
@@ -196,21 +198,42 @@ class RouterTest {
         public void showUseStart(long chatId) {
             showUseStartCalls++;
         }
+    }
+
+    /** Заглушка {@link TextHandler}. */
+    private static class FakeTextHandler extends TextHandler {
+        int handleCalls;
+
+        FakeTextHandler() {
+            super(null, null, null, null, null, null);
+        }
 
         @Override
-        public void showUnsupportedMaterial(long chatId) {
-            showUnsupportedMaterialCalls++;
+        public void handle(UserMessage message, Session session) {
+            handleCalls++;
         }
     }
 
-    /** Заглушка {@link MaterialHandler} с управляемым типом. */
-    private static class FakeMaterialHandler implements MaterialHandler {
+    /** Заглушка {@link DocumentHandler}. */
+    private static class FakeDocumentHandler extends DocumentHandler {
         int handleCalls;
-        MessageType type = MessageType.TEXT;
+
+        FakeDocumentHandler() {
+            super(null, null, null, null, null, null);
+        }
 
         @Override
-        public MessageType type() {
-            return type;
+        public void handle(UserMessage message, Session session) {
+            handleCalls++;
+        }
+    }
+
+    /** Заглушка {@link VoiceHandler}. */
+    private static class FakeVoiceHandler extends VoiceHandler {
+        int handleCalls;
+
+        FakeVoiceHandler() {
+            super(null, null, null, null, null, null, null);
         }
 
         @Override

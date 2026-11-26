@@ -8,7 +8,8 @@ services:
     environment:
       LT_LOAD_ONLY: "en,ru,de,fr,es"
       LT_CHAR_LIMIT: "4000"
-      LT_UPDATE_MODELS: "false"
+      # true нужен на чистой машине: при пустом томе модели скачиваются при старте
+      LT_UPDATE_MODELS: "true"
     volumes:
       - lt-models:/home/libretranslate/.local
     healthcheck:
@@ -29,6 +30,19 @@ services:
       ASR_ENGINE: "openai_whisper"
     volumes:
       - whisper-cache:/root/.cache  # модель скачивается один раз
+
+  edge-tts:
+    build:
+      context: ./docker/edge-tts
+    image: translatorbot-edge-tts:latest  # edge-tts обновлён до рабочей версии
+    container_name: edge-tts
+    restart: unless-stopped
+    ports:
+      - "5050:5050"
+    environment:
+      DEFAULT_VOICE: "en-US-AriaNeural"
+      DEFAULT_RESPONSE_FORMAT: "opus"
+      REQUIRE_API_KEY: "false"
 
   postgres:
     image: postgres:16-alpine

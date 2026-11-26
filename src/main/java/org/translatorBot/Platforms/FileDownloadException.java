@@ -1,4 +1,4 @@
-package org.translatorBot.Sender;
+package org.translatorBot.Platforms;
 
 /**
  * Ошибка скачивания файла из мессенджера. Наследуется от

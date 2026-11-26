@@ -1,4 +1,4 @@
-package org.translatorBot.Discord;
+package org.translatorBot.Platforms.Discord;
 
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
@@ -11,8 +11,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.translatorBot.Model.AppButton;
 import org.translatorBot.Model.AppKeyboard;
-import org.translatorBot.Sender.FileDownloadException;
-import org.translatorBot.Sender.MessageSender;
+import org.translatorBot.Platforms.FileDownloadException;
+import org.translatorBot.Platforms.MessageSender;
 
 import java.io.IOException;
 import java.net.URI;
@@ -128,7 +128,8 @@ public class SenderDiscord implements MessageSender {
         try {
             data = Files.readAllBytes(content);
         } catch (IOException e) {
-            throw new FileDownloadException("Failed to read document for Discord", e);
+            log.error("Failed to read document for Discord channel {}", chatId, e);
+            return;
         }
         MessageCreateAction action = channel
                 .sendMessage(caption == null ? "" : caption)
@@ -138,6 +139,17 @@ public class SenderDiscord implements MessageSender {
         }
         action.queue(null, error ->
                 log.error("Failed to send document to Discord channel {}", chatId, error));
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public void sendVoice(long chatId, byte[] audio, String fileName) {
+        MessageChannel channel = channel(chatId);
+        if (channel == null) {
+            return;
+        }
+        channel.sendFiles(FileUpload.fromData(audio, fileName)).queue(null, error ->
+                log.error("Failed to send voice to Discord channel {}", chatId, error));
     }
 
     /**

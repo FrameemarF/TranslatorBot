@@ -1,4 +1,4 @@
-package org.translatorBot.Discord;
+package org.translatorBot.Platforms.Discord;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,7 +33,8 @@ public class DiscordMapper {
         List<net.dv8tion.jda.api.entities.Message.Attachment> attachments =
                 message.getAttachments();
         if (!attachments.isEmpty()) {
-            return Optional.of(fromAttachment(chatId, accountId, attachments.get(0)));
+            return Optional.of(fromAttachment(chatId, accountId, attachments.get(0),
+                    message.getAuthor().getName()));
         }
 
         String text = message.getContentRaw();
@@ -41,7 +42,8 @@ public class DiscordMapper {
             log.debug("Skipping empty Discord message from account {}", accountId);
             return Optional.empty();
         }
-        return Optional.of(new UserMessage(chatId, accountId, text));
+        return Optional.of(new UserMessage(chatId, accountId, text)
+                .withUserName(message.getAuthor().getName()));
     }
 
     /**
@@ -50,18 +52,20 @@ public class DiscordMapper {
      * @param chatId     идентификатор канала
      * @param accountId  идентификатор аккаунта пользователя
      * @param attachment вложение сообщения
+     * @param userName   имя автора сообщения
      * @return сообщение с документом или голосовым материалом
      */
     private UserMessage fromAttachment(long chatId, long accountId,
-                                       net.dv8tion.jda.api.entities.Message.Attachment attachment) {
+                                       net.dv8tion.jda.api.entities.Message.Attachment attachment,
+                                       String userName) {
         long size = attachment.getSize();
         double duration = attachment.getDuration();
         if (duration > 0) {
             int seconds = (int) Math.ceil(duration);
             return new UserMessage(chatId, accountId, MessageType.VOICE, null,
-                    attachment.getUrl(), attachment.getFileName(), size, seconds);
+                    attachment.getUrl(), attachment.getFileName(), size, seconds, userName);
         }
         return new UserMessage(chatId, accountId, attachment.getUrl(),
-                attachment.getFileName(), size);
+                attachment.getFileName(), size).withUserName(userName);
     }
 }

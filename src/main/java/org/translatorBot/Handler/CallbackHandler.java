@@ -1,89 +1,135 @@
 package org.translatorBot.Handler;
 
+import org.translatorBot.History.Platform;
 import org.translatorBot.Language;
 import org.translatorBot.LanguageCatalog;
 import org.translatorBot.Model.UserCallback;
-import org.translatorBot.Sender.MessageSender;
+import org.translatorBot.Platforms.MessageSender;
 import org.translatorBot.Session.Session;
 import org.translatorBot.Session.SessionStore;
 import org.translatorBot.Ui;
+import org.translatorBot.User.ResponseMode;
+import org.translatorBot.User.UserProfile;
+import org.translatorBot.User.UserService;
 
 import java.util.Optional;
 
 /**
  * Обработчик нажатий inline-кнопок.
- * <p>
- * Подтверждает нажатие у платформы, находит сессию пользователя и сопоставляет
- * данные кнопки ({@code callbackData}) с шагом диалога; сами шаги выполняет
- * {@link DialogFlow}, а историю — {@link HistoryHandler}.
  */
 public class CallbackHandler {
-    /** Отправитель сообщений (подтверждение нажатия). */
     private final MessageSender sender;
-    /** Хранилище сессий пользователей. */
     private final SessionStore sessions;
-    /** Шаги диалога. */
     private final DialogFlow flow;
-    /** Обработчик истории переводов. */
     private final HistoryHandler history;
-    /** Поиск языков по callback-данным. */
-    private final LanguageCatalog languages;
+    private final ProfileHandler profile;
+    private final SettingsHandler settings;
+    private final StatsHandler stats;
+    private final UserService users;
+    private final Platform platform;
+    private final LanguageCatalog languages = new LanguageCatalog();
 
     /**
-     * Создаёт обработчик нажатий кнопок.
-     *
-     * @param sender   отправитель сообщений (подтверждение нажатия)
+     * @param sender   отправитель сообщений
      * @param sessions хранилище сессий
      * @param flow     шаги диалога
-     * @param history  обработчик истории переводов
+     * @param history  история
+     * @param profile  профиль
+     * @param settings настройки
+     * @param stats    статистика
+     * @param users    профили пользователей
+     * @param platform платформа
      */
     public CallbackHandler(MessageSender sender, SessionStore sessions, DialogFlow flow,
-                           HistoryHandler history) {
+                           HistoryHandler history, ProfileHandler profile,
+                           SettingsHandler settings, StatsHandler stats,
+                           UserService users, Platform platform) {
         this.sender = sender;
         this.sessions = sessions;
         this.flow = flow;
         this.history = history;
-        this.languages = new LanguageCatalog();
+        this.profile = profile;
+        this.settings = settings;
+        this.stats = stats;
+        this.users = users;
+        this.platform = platform;
     }
 
     /**
-     * Подтверждает callback у платформы и выполняет действие, соответствующее
-     * данным кнопки.
+     * Подтверждает callback и выполняет действие кнопки.
      *
-     * @param q универсальный callback-запрос
+     * @param q универсальный callback
      */
     public void handle(UserCallback q) {
         sender.ackCallback(q.callbackId());
 
         long chatId = q.chatId();
         long accountId = q.accountId();
-        Session s = sessions.get(accountId);
+        Session session = sessions.get(accountId);
         String data = q.data();
 
         switch (data) {
-            case "TRANSLATE", "CHANGE_LANG" -> flow.startSourceChoice(chatId, s);
-            case "HELP"                     -> flow.showHelp(chatId);
-            case "MORE"                     -> flow.askForText(chatId, s);
-            case "MENU"                     -> flow.showMenu(chatId, s);
-            case "HISTORY"                  -> history.show(chatId, accountId);
-            case "CLEAR_HISTORY"            -> history.clear(chatId, accountId);
+            case "TRANSLATE" -> flow.startTranslation(chatId, session, defaultTarget(accountId));
+            case "CHANGE_LANG" -> flow.startSourceChoice(chatId, session);
+            case "HELP" -> flow.showHelp(chatId);
+            case "MORE" -> flow.askForText(chatId, session);
+            case "MENU" -> flow.showMenu(chatId, session);
+            case "HISTORY" -> history.show(chatId, accountId);
+            case "CLEAR_HISTORY" -> history.clear(chatId, accountId);
+            case "PROFILE" -> profile.show(chatId, accountId);
+            case "SETTINGS" -> settings.show(chatId, accountId);
+            case "STATS" -> stats.show(chatId);
             default -> {
-                if (!handleHistoryPage(chatId, accountId, data)) {
-                    handleLanguage(chatId, s, data);
+                if (!handleSettings(chatId, accountId, data)
+                        && !handleHistoryPage(chatId, accountId, data)) {
+                    handleLanguage(chatId, session, data);
                 }
             }
         }
     }
 
     /**
-     * Разбирает кнопки навигации по истории вида
-     * {@code HISTORY_PAGE_2_12345}. Старый формат без границы снимка
-     * ({@code HISTORY_PAGE_2}) тоже поддерживается.
+     * Обрабатывает кнопки настроек.
      *
      * @param chatId    идентификатор чата
-     * @param accountId идентификатор аккаунта пользователя
+     * @param accountId идентификатор аккаунта
      * @param data      данные кнопки
-     * @return {@code true}, если данные относятся к навигации по истории
+     * @return {@code true}, если данные относятся к настройкам
+     */
+    private boolean handleSettings(long chatId, long accountId, String data) {
+        if (Ui.SET_MODE_TEXT.equals(data)) {
+            settings.selectMode(chatId, accountId, ResponseMode.TEXT);
+            return true;
+        }
+        if (Ui.SET_MODE_VOICE.equals(data)) {
+            settings.selectMode(chatId, accountId, ResponseMode.TEXT_AND_VOICE);
+            return true;
+        }
+        if (!data.startsWith(Ui.SET_TARGET_PREFIX)) {
+            return false;
+        }
+        String value = data.substring(Ui.SET_TARGET_PREFIX.length());
+        if ("NONE".equals(value)) {
+            settings.selectTarget(chatId, accountId, null);
+            return true;
+        }
+        Optional<Language> language = languages.findByName(value);
+        if (language.isPresent()) {
+            settings.selectTarget(chatId, accountId, language.get());
+        } else {
+            flow.showUnknown(chatId);
+        }
+        return true;
+    }
+
+    /**
+     * Разбирает кнопки навигации вида {@code HISTORY_PAGE_2_12345}.
+     * Поддерживается и старый формат без границы снимка.
+     *
+     * @param chatId    идентификатор чата
+     * @param accountId идентификатор аккаунта
+     * @param data      данные кнопки
+     * @return {@code true}, если данные относятся к истории
      */
     private boolean handleHistoryPage(long chatId, long accountId, String data) {
         if (!data.startsWith(Ui.HISTORY_PAGE_PREFIX)) {
@@ -109,24 +155,34 @@ public class CallbackHandler {
     }
 
     /**
-     * Разбирает кнопки выбора языка вида {@code SRC_DE} / {@code TGT_FR}.
-     * Неизвестные данные приводят к сообщению об ошибке.
+     * Разбирает кнопки выбора языка {@code SRC_DE} / {@code TGT_FR}.
      *
-     * @param chatId идентификатор чата
-     * @param s      сессия пользователя
-     * @param data   данные кнопки
+     * @param chatId  идентификатор чата
+     * @param session сессия пользователя
+     * @param data    данные кнопки
      */
-    private void handleLanguage(long chatId, Session s, String data) {
-        Optional<Language> lang = data.length() > 4
+    private void handleLanguage(long chatId, Session session, String data) {
+        Optional<Language> language = data.length() > 4
                 ? languages.findByName(data.substring(4))
                 : Optional.empty();
-
-        if (lang.isPresent() && data.startsWith("SRC_")) {
-            flow.pickSource(chatId, s, lang.get());
-        } else if (lang.isPresent() && data.startsWith("TGT_")) {
-            flow.pickTarget(chatId, s, lang.get());
+        if (language.isPresent() && data.startsWith("SRC_")) {
+            flow.pickSource(chatId, session, language.get());
+        } else if (language.isPresent() && data.startsWith("TGT_")) {
+            flow.pickTarget(chatId, session, language.get());
         } else {
             flow.showUnknown(chatId);
         }
+    }
+
+    /**
+     * Возвращает язык-цель по умолчанию.
+     *
+     * @param accountId идентификатор аккаунта
+     * @return язык или {@code null}
+     */
+    private Language defaultTarget(long accountId) {
+        return users.profile(platform, accountId)
+                .map(UserProfile::target)
+                .orElse(null);
     }
 }

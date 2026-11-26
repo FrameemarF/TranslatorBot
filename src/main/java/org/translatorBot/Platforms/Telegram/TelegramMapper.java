@@ -1,4 +1,4 @@
-package org.translatorBot.Telegram;
+package org.translatorBot.Platforms.Telegram;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,19 +36,23 @@ public class TelegramMapper {
     public Optional<UserMessage> toUserMessage(Message msg) {
         long chatId = msg.getChatId();
         long accountId = msg.getFrom() == null ? chatId : msg.getFrom().getId();
+        String userName = msg.getFrom() == null ? null : msg.getFrom().getUserName();
 
         if (msg.hasText()) {
-            return Optional.of(new UserMessage(chatId, accountId, msg.getText()));
+            return Optional.of(new UserMessage(chatId, accountId, msg.getText())
+                    .withUserName(userName));
         }
         if (msg.hasDocument()) {
             Document doc = msg.getDocument();
             return Optional.of(new UserMessage(chatId, accountId,
-                    doc.getFileId(), doc.getFileName(), doc.getFileSize()));
+                    doc.getFileId(), doc.getFileName(), doc.getFileSize())
+                    .withUserName(userName));
         }
         if (msg.hasVoice()) {
             Voice voice = msg.getVoice();
             return Optional.of(new UserMessage(chatId, accountId,
-                    voice.getFileId(), voice.getDuration()));
+                    voice.getFileId(), voice.getDuration())
+                    .withUserName(userName));
         }
 
         log.warn("Unsupported message type from chat {}", chatId);

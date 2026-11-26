@@ -1,17 +1,21 @@
-package org.translatorBot.Sender;
+package org.translatorBot.Platforms.Telegram;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 import org.telegram.telegrambots.meta.api.methods.GetFile;
+import org.telegram.telegrambots.meta.api.methods.send.SendAudio;
 import org.telegram.telegrambots.meta.api.methods.send.SendDocument;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.send.SendVoice;
 import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
 import org.translatorBot.Model.AppKeyboard;
-import org.translatorBot.Telegram.TelegramMapper;
+import org.translatorBot.Platforms.FileDownloadException;
+import org.translatorBot.Platforms.MessageSender;
 
+import java.io.ByteArrayInputStream;
 import java.nio.file.Path;
 
 /**
@@ -88,5 +92,54 @@ public class SenderTG implements MessageSender {
         } catch (Exception e) {
             log.error("Failed to send document to chat {}", chatId, e);
         }
+    }
+
+    /**
+     * Отправляет аудио голосовым сообщением.
+     * <p>
+     * Telegram показывает голосовым только OGG/Opus. Если сервис озвучки
+     * вернул другой формат (например, MP3 без ffmpeg в контейнере), файл
+     * отправляется как обычное аудио, чтобы ответ не потерялся.
+     */
+    @Override
+    public void sendVoice(long chatId, byte[] audio, String fileName) {
+        try {
+            if (isOgg(audio)) {
+                client.execute(SendVoice.builder()
+                        .chatId(String.valueOf(chatId))
+                        .voice(new InputFile(new ByteArrayInputStream(audio), fileName))
+                        .build());
+            } else {
+                log.warn("Audio for chat {} is not OGG/Opus, sending as audio file", chatId);
+                String name = fileName.endsWith(".ogg")
+                        ? fileName.substring(0, fileName.length() - 4) + ".mp3"
+                        : fileName;
+                client.execute(SendAudio.builder()
+                        .chatId(String.valueOf(chatId))
+                        .audio(new InputFile(new ByteArrayInputStream(audio), name))
+                        .build());
+            }
+        } catch (Exception e) {
+            log.error("Failed to send voice to chat {}", chatId, e);
+        }
+    }
+
+    /**
+     * Проверяет сигнатуру OGG-контейнера.
+     *
+     * @param audio содержимое аудиофайла
+     * @return {@code true}, если файл начинается с {@code OggS}
+     */
+    private boolean isOgg(byte[] audio) {
+        byte[] magic = {'O', 'g', 'g', 'S'};
+        if (audio == null || audio.length < magic.length) {
+            return false;
+        }
+        for (int i = 0; i < magic.length; i++) {
+            if (audio[i] != magic[i]) {
+                return false;
+            }
+        }
+        return true;
     }
 }

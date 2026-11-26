@@ -1,4 +1,4 @@
-package org.translatorBot.Sender;
+package org.translatorBot.Platforms;
 
 import org.translatorBot.Model.AppKeyboard;
 
@@ -55,4 +55,13 @@ public interface MessageSender {
      * @param keyboard универсальная клавиатура или {@code null}
      */
     void sendDocument(long chatId, String fileName, Path content, String caption, AppKeyboard keyboard);
+
+    /**
+     * Отправляет голосовое сообщение.
+     *
+     * @param chatId   идентификатор чата
+     * @param audio    содержимое аудиофайла
+     * @param fileName имя файла (например, {@code voice.ogg})
+     */
+    void sendVoice(long chatId, byte[] audio, String fileName);
 }
