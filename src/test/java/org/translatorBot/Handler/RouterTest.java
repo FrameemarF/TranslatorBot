@@ -205,7 +205,7 @@ class RouterTest {
         int handleCalls;
 
         FakeTextHandler() {
-            super(null, null, null, null, null);
+            super(null, null, null, null, null, null);
         }
 
         @Override
@@ -219,7 +219,7 @@ class RouterTest {
         int handleCalls;
 
         FakeDocumentHandler() {
-            super(null, null, null, null, null);
+            super(null, null, null, null, null, null);
         }
 
         @Override
@@ -233,7 +233,7 @@ class RouterTest {
         int handleCalls;
 
         FakeVoiceHandler() {
-            super(null, null, null, null, null, null);
+            super(null, null, null, null, null, null, null);
         }
 
         @Override

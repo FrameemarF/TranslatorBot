@@ -128,7 +128,8 @@ public class SenderDiscord implements MessageSender {
         try {
             data = Files.readAllBytes(content);
         } catch (IOException e) {
-            throw new FileDownloadException("Failed to read document for Discord", e);
+            log.error("Failed to read document for Discord channel {}", chatId, e);
+            return;
         }
         MessageCreateAction action = channel
                 .sendMessage(caption == null ? "" : caption)

@@ -8,7 +8,8 @@ services:
     environment:
       LT_LOAD_ONLY: "en,ru,de,fr,es"
       LT_CHAR_LIMIT: "4000"
-      LT_UPDATE_MODELS: "false"
+      # true нужен на чистой машине: при пустом томе модели скачиваются при старте
+      LT_UPDATE_MODELS: "true"
     volumes:
       - lt-models:/home/libretranslate/.local
     healthcheck:

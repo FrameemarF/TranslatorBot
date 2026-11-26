@@ -15,6 +15,7 @@ import org.translatorBot.Service.Translation.TranslationService;
 import org.translatorBot.Ui;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -29,6 +30,7 @@ public class TextHandler {
     private final Ui ui;
     private final HistoryService history;
     private final Platform platform;
+    private final VoiceReplySender voiceReply;
 
     /**
      * @param sender     отправитель сообщений
@@ -36,14 +38,16 @@ public class TextHandler {
      * @param ui         тексты интерфейса
      * @param history    история переводов
      * @param platform   платформа пользователя
+     * @param voiceReply озвучивание перевода
      */
     public TextHandler(MessageSender sender, TranslationService translator, Ui ui,
-                       HistoryService history, Platform platform) {
+                       HistoryService history, Platform platform, VoiceReplySender voiceReply) {
         this.sender = sender;
         this.translator = translator;
         this.ui = ui;
         this.history = history;
         this.platform = platform;
+        this.voiceReply = voiceReply;
     }
 
     /**
@@ -73,12 +77,17 @@ public class TextHandler {
             String result = translator.translate(text, session.getSource(), session.getTarget());
             session.setState(Session.State.IDLE);
 
+            List<byte[]> voice = voiceReply.prepare(message.accountId(), result, session.getTarget());
             boolean saved = history.save(platform, message.accountId(), record(message, session, text, result));
             String reply = ui.translation(result);
             if (!saved) {
                 reply += "\n" + ui.historySaveFailed;
             }
+            if (voice != null && voice.isEmpty()) {
+                reply += "\n" + ui.ttsFailed;
+            }
             sender.send(chatId, reply, ui.afterTranslation());
+            voiceReply.send(chatId, voice);
         } catch (TranslationException e) {
             log.error("Translation failed for chat {}", chatId, e);
             sender.send(chatId, ui.translateErr);

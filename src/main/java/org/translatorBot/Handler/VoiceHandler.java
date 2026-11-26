@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -40,6 +41,7 @@ public class VoiceHandler {
     private final Ui ui;
     private final HistoryService history;
     private final Platform platform;
+    private final VoiceReplySender voiceReply;
 
     /**
      * @param sender     отправитель сообщений
@@ -48,16 +50,18 @@ public class VoiceHandler {
      * @param ui         тексты интерфейса
      * @param history    история переводов
      * @param platform   платформа пользователя
+     * @param voiceReply озвучивание перевода
      */
     public VoiceHandler(MessageSender sender, SpeechRecognitionService speech,
                         TranslationService translator, Ui ui, HistoryService history,
-                        Platform platform) {
+                        Platform platform, VoiceReplySender voiceReply) {
         this.sender = sender;
         this.speech = speech;
         this.translator = translator;
         this.ui = ui;
         this.history = history;
         this.platform = platform;
+        this.voiceReply = voiceReply;
     }
 
     /**
@@ -93,6 +97,7 @@ public class VoiceHandler {
 
             String result = translator.translate(recognized.get(),
                     session.getSource(), session.getTarget());
+            List<byte[]> voice = voiceReply.prepare(message.accountId(), result, session.getTarget());
             boolean saved = history.save(platform, message.accountId(),
                     record(message, session, recognized.get(), result));
 
@@ -100,7 +105,11 @@ public class VoiceHandler {
             if (!saved) {
                 reply += "\n" + ui.historySaveFailed;
             }
+            if (voice != null && voice.isEmpty()) {
+                reply += "\n" + ui.ttsFailed;
+            }
             sender.send(chatId, reply, ui.afterTranslation());
+            voiceReply.send(chatId, voice);
         } catch (TranslationException e) {
             log.error("Translation failed for chat {}", chatId, e);
             sender.send(chatId, ui.translateErr);
