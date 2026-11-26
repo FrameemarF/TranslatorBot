@@ -13,15 +13,22 @@ import org.translatorBot.Model.MessageType;
 import org.translatorBot.Model.UserMessage;
 import org.translatorBot.Platforms.FileDownloadException;
 import org.translatorBot.Platforms.MessageSender;
+import org.translatorBot.Service.Speech.SpeechSynthesisService;
 import org.translatorBot.Service.Translation.TranslationException;
 import org.translatorBot.Service.Translation.TranslationService;
 import org.translatorBot.Session.Session;
 import org.translatorBot.Ui;
+import org.translatorBot.User.FakeUserService;
+import org.translatorBot.User.ResponseMode;
+import org.translatorBot.User.UserProfile;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -47,7 +54,14 @@ class DocumentHandlerTest {
         translator = new FakeTranslator();
         history = new FakeHistoryService();
         ui = new Ui();
-        handler = new DocumentHandler(sender, translator, ui, history, Platform.TELEGRAM);
+        FakeUserService users = new FakeUserService();
+        users.profile = new UserProfile("Илья", Instant.now(), Language.EN,
+                ResponseMode.TEXT, ZoneOffset.UTC);
+        SpeechSynthesisService tts = (text, language) -> List.of();
+        VoiceReplySender voiceReply = new VoiceReplySender(
+                sender, tts, users, Platform.TELEGRAM);
+        handler = new DocumentHandler(sender, translator, ui, history,
+                Platform.TELEGRAM, voiceReply);
         session = new Session();
         session.setSource(Language.RU);
         session.setTarget(Language.EN);
@@ -218,10 +232,10 @@ class DocumentHandlerTest {
         }
 
         @Override
-        public void sendVoice(long chatId, byte[] audio, String fileName) {}
+        public void ackCallback(String callbackId) {}
 
         @Override
-        public void ackCallback(String callbackId) {}
+        public void sendVoice(long chatId, byte[] audio, String fileName) {}
     }
 
     private static class FakeTranslator implements TranslationService {

@@ -16,6 +16,7 @@ import org.translatorBot.Handler.SettingsHandler;
 import org.translatorBot.Handler.StatsHandler;
 import org.translatorBot.Handler.TextHandler;
 import org.translatorBot.Handler.VoiceHandler;
+import org.translatorBot.Handler.VoiceReplySender;
 import org.translatorBot.History.HistoryService;
 import org.translatorBot.History.JdbcHistoryService;
 import org.translatorBot.History.Platform;
@@ -145,6 +146,7 @@ public class BotApplication {
      */
     private Router buildRouter(MessageSender sender, Platform platform) {
         SessionStore sessions = new InMemorySessionStore();
+        VoiceReplySender voiceReply = new VoiceReplySender(sender, tts, users, platform);
 
         DialogFlow flow = new DialogFlow(sender, ui);
         HistoryHandler historyHandler = new HistoryHandler(sender, history, users, ui, platform);
@@ -158,9 +160,9 @@ public class BotApplication {
                 profileHandler, settingsHandler, statsHandler, users, platform);
 
         return new Router(sessions, commands, callbacks, flow,
-                new TextHandler(sender, translator, ui, history, platform),
-                new DocumentHandler(sender, translator, ui, history, platform),
-                new VoiceHandler(sender, speech, translator, ui, history, platform),
+                new TextHandler(sender, translator, ui, history, platform, voiceReply),
+                new DocumentHandler(sender, translator, ui, history, platform, voiceReply),
+                new VoiceHandler(sender, speech, translator, ui, history, platform, voiceReply),
                 platform, users);
     }
 

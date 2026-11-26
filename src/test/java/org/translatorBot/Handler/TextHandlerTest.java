@@ -11,10 +11,18 @@ import org.translatorBot.Model.AppKeyboard;
 import org.translatorBot.Model.MessageType;
 import org.translatorBot.Model.UserMessage;
 import org.translatorBot.Platforms.MessageSender;
+import org.translatorBot.Service.Speech.SpeechSynthesisService;
 import org.translatorBot.Service.Translation.TranslationException;
 import org.translatorBot.Service.Translation.TranslationService;
 import org.translatorBot.Session.Session;
 import org.translatorBot.Ui;
+import org.translatorBot.User.FakeUserService;
+import org.translatorBot.User.ResponseMode;
+import org.translatorBot.User.UserProfile;
+
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.List;
 
 /**
  * Модульные тесты для {@link TextHandler}.
@@ -36,7 +44,14 @@ class TextHandlerTest {
         translator = new FakeTranslator();
         history = new FakeHistoryService();
         ui = new Ui();
-        handler = new TextHandler(sender, translator, ui, history, Platform.TELEGRAM);
+        FakeUserService users = new FakeUserService();
+        users.profile = new UserProfile("Илья", Instant.now(), Language.EN,
+                ResponseMode.TEXT, ZoneOffset.UTC);
+        SpeechSynthesisService tts = (text, language) -> List.of();
+        VoiceReplySender voiceReply = new VoiceReplySender(
+                sender, tts, users, Platform.TELEGRAM);
+        handler = new TextHandler(sender, translator, ui, history,
+                Platform.TELEGRAM, voiceReply);
         session = new Session();
         session.setSource(Language.RU);
         session.setTarget(Language.EN);

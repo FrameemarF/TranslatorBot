@@ -19,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.List;
 
 /**
  * Перевод файла .txt: в ответ приходит файл name_translated.txt.
@@ -35,6 +36,7 @@ public class DocumentHandler {
     private final Ui ui;
     private final HistoryService history;
     private final Platform platform;
+    private final VoiceReplySender voiceReply;
 
     /**
      * @param sender     отправитель сообщений
@@ -42,14 +44,17 @@ public class DocumentHandler {
      * @param ui         тексты интерфейса
      * @param history    история переводов
      * @param platform   платформа пользователя
+     * @param voiceReply озвучивание перевода
      */
     public DocumentHandler(MessageSender sender, TranslationService translator, Ui ui,
-                           HistoryService history, Platform platform) {
+                           HistoryService history, Platform platform,
+                           VoiceReplySender voiceReply) {
         this.sender = sender;
         this.translator = translator;
         this.ui = ui;
         this.history = history;
         this.platform = platform;
+        this.voiceReply = voiceReply;
     }
 
     /**
@@ -98,13 +103,18 @@ public class DocumentHandler {
             translated = Files.createTempFile("translatorbot-", ".txt");
             Files.writeString(translated, result, StandardCharsets.UTF_8);
 
+            List<byte[]> voice = voiceReply.prepare(message.accountId(), result, session.getTarget());
             boolean saved = history.save(platform, message.accountId(), record(message, session, text, result));
             String caption = ui.fileReady;
             if (!saved) {
                 caption += "\n" + ui.historySaveFailed;
             }
+            if (voice != null && voice.isEmpty()) {
+                caption += "\n" + ui.ttsFailed;
+            }
             sender.sendDocument(chatId, base + "_translated.txt", translated,
                     caption, ui.afterTranslation());
+            voiceReply.send(chatId, voice);
         } catch (FileDownloadException | IOException e) {
             log.error("File read failed for chat {}", chatId, e);
             sender.send(chatId, ui.fileReadErr);
